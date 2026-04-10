@@ -34,3 +34,30 @@ export interface DocumentStatusView {
     explanation?: string;
   }>;
 }
+
+export interface DocumentFlashcardsView {
+  documentId: string;
+  status: DocumentStatus;
+  error?: string;
+  flashcards?: Array<{ id: string; question: string; answer: string }>;
+}
+
+export interface DocumentQuizzesView {
+  documentId: string;
+  status: DocumentStatus;
+  error?: string;
+  quizzes?: Array<{
+    id: string;
+    question: string;
+    options: string[];
+    correctOption: number;
+    explanation?: string;
+  }>;
+}
+
+export interface DocumentNotesView {
+  documentId: string;
+  status: DocumentStatus;
+  error?: string;
+  notes?: Array<{ id: string; title: string; content: string }>;
+}

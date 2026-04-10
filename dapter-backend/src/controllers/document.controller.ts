@@ -3,6 +3,9 @@ import { env } from "../config/env";
 import { logger } from "../config/logger";
 import type { IDocumentService } from "../services/document.service";
 import {
+  documentFlashcardsResponseSchema,
+  documentNotesResponseSchema,
+  documentQuizzesResponseSchema,
   documentStatusResponseSchema,
   uploadDocumentResponseSchema,
 } from "../schemas/document.schema";
@@ -132,6 +135,99 @@ export const createDocumentController = (documentService: IDocumentService) =>
         detail: {
           tags: ["Documents"],
           summary: "Poll document processing status",
+        },
+      },
+    )
+    .get(
+      "/:id/flashcards",
+      async ({ params, set }) => {
+        try {
+          const payload = await documentService.getFlashcards(params.id);
+          if (!payload) {
+            set.status = 404;
+            return { message: "Document not found" };
+          }
+          return payload;
+        } catch (e) {
+          const message = e instanceof Error ? e.message : "Unexpected flashcards fetch error";
+          set.status = 500;
+          return { message };
+        }
+      },
+      {
+        params: t.Object({
+          id: t.String(),
+        }),
+        response: {
+          200: documentFlashcardsResponseSchema,
+          404: t.Object({ message: t.String() }),
+          500: t.Object({ message: t.String() }),
+        },
+        detail: {
+          tags: ["Documents"],
+          summary: "Get flashcards by document id",
+        },
+      },
+    )
+    .get(
+      "/:id/quizzes",
+      async ({ params, set }) => {
+        try {
+          const payload = await documentService.getQuizzes(params.id);
+          if (!payload) {
+            set.status = 404;
+            return { message: "Document not found" };
+          }
+          return payload;
+        } catch (e) {
+          const message = e instanceof Error ? e.message : "Unexpected quizzes fetch error";
+          set.status = 500;
+          return { message };
+        }
+      },
+      {
+        params: t.Object({
+          id: t.String(),
+        }),
+        response: {
+          200: documentQuizzesResponseSchema,
+          404: t.Object({ message: t.String() }),
+          500: t.Object({ message: t.String() }),
+        },
+        detail: {
+          tags: ["Documents"],
+          summary: "Get quizzes by document id",
+        },
+      },
+    )
+    .get(
+      "/:id/notes",
+      async ({ params, set }) => {
+        try {
+          const payload = await documentService.getNotes(params.id);
+          if (!payload) {
+            set.status = 404;
+            return { message: "Document not found" };
+          }
+          return payload;
+        } catch (e) {
+          const message = e instanceof Error ? e.message : "Unexpected notes fetch error";
+          set.status = 500;
+          return { message };
+        }
+      },
+      {
+        params: t.Object({
+          id: t.String(),
+        }),
+        response: {
+          200: documentNotesResponseSchema,
+          404: t.Object({ message: t.String() }),
+          500: t.Object({ message: t.String() }),
+        },
+        detail: {
+          tags: ["Documents"],
+          summary: "Get notes by document id",
         },
       },
     );

@@ -108,6 +108,9 @@ Server endpoints:
 - `GET /health`
 - `POST /documents/upload` (multipart form-data, field `file`)
 - `GET /documents/:id/status`
+- `GET /documents/:id/flashcards`
+- `GET /documents/:id/quizzes`
+- `GET /documents/:id/notes`
 - `GET /docs` (Swagger)
 
 ## Architecture

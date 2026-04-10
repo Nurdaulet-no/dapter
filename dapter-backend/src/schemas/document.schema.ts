@@ -41,6 +41,53 @@ export const documentStatusResponseSchema = t.Object({
   ),
 });
 
+export const documentFlashcardsResponseSchema = t.Object({
+  documentId: t.String(),
+  status: t.Union([t.Literal("PROCESSING"), t.Literal("COMPLETED"), t.Literal("FAILED")]),
+  error: t.Optional(t.String()),
+  flashcards: t.Optional(
+    t.Array(
+      t.Object({
+        id: t.String(),
+        question: t.String(),
+        answer: t.String(),
+      }),
+    ),
+  ),
+});
+
+export const documentQuizzesResponseSchema = t.Object({
+  documentId: t.String(),
+  status: t.Union([t.Literal("PROCESSING"), t.Literal("COMPLETED"), t.Literal("FAILED")]),
+  error: t.Optional(t.String()),
+  quizzes: t.Optional(
+    t.Array(
+      t.Object({
+        id: t.String(),
+        question: t.String(),
+        options: t.Array(t.String()),
+        correctOption: t.Number(),
+        explanation: t.Optional(t.String()),
+      }),
+    ),
+  ),
+});
+
+export const documentNotesResponseSchema = t.Object({
+  documentId: t.String(),
+  status: t.Union([t.Literal("PROCESSING"), t.Literal("COMPLETED"), t.Literal("FAILED")]),
+  error: t.Optional(t.String()),
+  notes: t.Optional(
+    t.Array(
+      t.Object({
+        id: t.String(),
+        title: t.String(),
+        content: t.String(),
+      }),
+    ),
+  ),
+});
+
 export const flashcardSchema = z.object({
   question: z.string().min(3),
   answer: z.string().min(1),

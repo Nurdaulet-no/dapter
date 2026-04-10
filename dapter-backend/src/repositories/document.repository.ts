@@ -1,6 +1,9 @@
 import type { DocumentStatus, PrismaClient } from "@prisma/client";
 import { logger } from "../config/logger";
 import type {
+  DocumentFlashcardsView,
+  DocumentNotesView,
+  DocumentQuizzesView,
   DocumentRegistrationInput,
   DocumentStatusView,
   LearningArtifactInput,
@@ -19,6 +22,9 @@ export interface IDocumentRepository {
   markCompleted(id: string, artifacts: LearningArtifactInput): Promise<void>;
   markFailed(id: string, errorMessage: string): Promise<void>;
   getDocumentStatus(id: string): Promise<DocumentStatusView | null>;
+  getDocumentFlashcards(id: string): Promise<DocumentFlashcardsView | null>;
+  getDocumentQuizzes(id: string): Promise<DocumentQuizzesView | null>;
+  getDocumentNotes(id: string): Promise<DocumentNotesView | null>;
 }
 
 export class DocumentRepository implements IDocumentRepository {
@@ -161,6 +167,83 @@ export class DocumentRepository implements IDocumentRepository {
               options: item.options as string[],
               correctOption: item.correctOption,
               explanation: item.explanation ?? undefined,
+            }))
+          : undefined,
+    };
+  }
+
+  public async getDocumentFlashcards(id: string): Promise<DocumentFlashcardsView | null> {
+    const doc = await this.prisma.document.findUnique({
+      where: { id },
+      include: { flashcards: true },
+    });
+
+    if (!doc) {
+      return null;
+    }
+
+    return {
+      documentId: doc.id,
+      status: doc.status,
+      error: doc.error ?? undefined,
+      flashcards:
+        doc.status === "COMPLETED"
+          ? doc.flashcards.map((item) => ({
+              id: item.id,
+              question: item.question,
+              answer: item.answer,
+            }))
+          : undefined,
+    };
+  }
+
+  public async getDocumentQuizzes(id: string): Promise<DocumentQuizzesView | null> {
+    const doc = await this.prisma.document.findUnique({
+      where: { id },
+      include: { quizzes: true },
+    });
+
+    if (!doc) {
+      return null;
+    }
+
+    return {
+      documentId: doc.id,
+      status: doc.status,
+      error: doc.error ?? undefined,
+      quizzes:
+        doc.status === "COMPLETED"
+          ? doc.quizzes.map((item) => ({
+              id: item.id,
+              question: item.question,
+              options: item.options as string[],
+              correctOption: item.correctOption,
+              explanation: item.explanation ?? undefined,
+            }))
+          : undefined,
+    };
+  }
+
+  public async getDocumentNotes(id: string): Promise<DocumentNotesView | null> {
+    const doc = await this.prisma.document.findUnique({
+      where: { id },
+      include: { notes: true },
+    });
+
+    if (!doc) {
+      return null;
+    }
+
+    return {
+      documentId: doc.id,
+      status: doc.status,
+      error: doc.error ?? undefined,
+      notes:
+        doc.status === "COMPLETED"
+          ? doc.notes.map((item) => ({
+              id: item.id,
+              title: item.title,
+              content: item.content,
             }))
           : undefined,
     };

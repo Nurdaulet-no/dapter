@@ -13,6 +13,9 @@ export interface IDocumentService {
   }): Promise<{ documentId: string; status: "PROCESSING" }>;
   processDocument(documentId: string): Promise<void>;
   getStatus(documentId: string): ReturnType<IDocumentRepository["getDocumentStatus"]>;
+  getFlashcards(documentId: string): ReturnType<IDocumentRepository["getDocumentFlashcards"]>;
+  getQuizzes(documentId: string): ReturnType<IDocumentRepository["getDocumentQuizzes"]>;
+  getNotes(documentId: string): ReturnType<IDocumentRepository["getDocumentNotes"]>;
 }
 
 export class DocumentService implements IDocumentService {
@@ -115,6 +118,21 @@ export class DocumentService implements IDocumentService {
   public getStatus(documentId: string) {
     logger.debug("pipeline.status_lookup.started", { documentId });
     return this.repository.getDocumentStatus(documentId);
+  }
+
+  public getFlashcards(documentId: string) {
+    logger.debug("pipeline.flashcards_lookup.started", { documentId });
+    return this.repository.getDocumentFlashcards(documentId);
+  }
+
+  public getQuizzes(documentId: string) {
+    logger.debug("pipeline.quizzes_lookup.started", { documentId });
+    return this.repository.getDocumentQuizzes(documentId);
+  }
+
+  public getNotes(documentId: string) {
+    logger.debug("pipeline.notes_lookup.started", { documentId });
+    return this.repository.getDocumentNotes(documentId);
   }
 
   private mapMimeTypeToDocumentType(mimeType: string): DocumentType {
