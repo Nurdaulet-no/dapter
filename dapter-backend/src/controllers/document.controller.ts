@@ -1,8 +1,11 @@
 import { Elysia, t } from "elysia";
 import { env } from "../config/env";
 import { logger } from "../config/logger";
+import { AppError } from "../errors/app-error";
+import type { IAuthService } from "../services/auth.service";
 import type { IDocumentService } from "../services/document.service";
 import {
+  documentListResponseSchema,
   documentFlashcardsResponseSchema,
   documentNotesResponseSchema,
   documentQuizzesResponseSchema,
@@ -15,13 +18,85 @@ const allowedMimeTypes = new Set([
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 ]);
 
-export const createDocumentController = (documentService: IDocumentService) =>
+const WINDOW_MS = 60 * 1000;
+const MAX_UPLOADS_PER_MINUTE = 8;
+const uploadRateBuckets = new Map<string, { count: number; resetAt: number }>();
+
+const checkUploadRateLimit = (key: string): boolean => {
+  const now = Date.now();
+  const current = uploadRateBuckets.get(key);
+  if (!current || current.resetAt <= now) {
+    uploadRateBuckets.set(key, { count: 1, resetAt: now + WINDOW_MS });
+    return true;
+  }
+  if (current.count >= MAX_UPLOADS_PER_MINUTE) {
+    return false;
+  }
+  current.count += 1;
+  uploadRateBuckets.set(key, current);
+  return true;
+};
+
+export const createDocumentController = (
+  documentService: IDocumentService,
+  authService: IAuthService,
+) =>
   new Elysia({ prefix: "/documents" })
+    .derive(async ({ request }) => {
+      const authHeader = request.headers.get("authorization");
+      if (!authHeader?.startsWith("Bearer ")) {
+        return { currentUser: null };
+      }
+
+      const token = authHeader.slice("Bearer ".length).trim();
+      try {
+        const user = await authService.verifyAccessToken(token);
+        return { currentUser: user };
+      } catch {
+        return { currentUser: null };
+      }
+    })
+    .get(
+      "/",
+      async ({ currentUser, set }) => {
+        try {
+          if (!currentUser) {
+            set.status = 401;
+            return { message: "Unauthorized" };
+          }
+          return await documentService.getDocuments(currentUser.id);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Unexpected list error";
+          set.status = 500;
+          return { message };
+        }
+      },
+      {
+        response: {
+          200: documentListResponseSchema,
+          401: t.Object({ message: t.String() }),
+          500: t.Object({ message: t.String() }),
+        },
+        detail: {
+          tags: ["Documents"],
+          summary: "List current user's documents",
+        },
+      },
+    )
     .post(
       "/upload",
-      async ({ body, set }) => {
+      async ({ body, set, request, currentUser }) => {
         try {
+          if (!currentUser) {
+            set.status = 401;
+            return { message: "Unauthorized" };
+          }
           logger.info("documents.upload.request.received");
+          const rateKey = currentUser.id || request.headers.get("x-forwarded-for") || "unknown";
+          if (!checkUploadRateLimit(rateKey)) {
+            set.status = 429;
+            return { message: "Too many uploads. Please retry later." };
+          }
           const file = body.file;
           if (!file) {
             set.status = 400;
@@ -58,6 +133,7 @@ export const createDocumentController = (documentService: IDocumentService) =>
             byteLength: bytes.byteLength,
           });
           const result = await documentService.uploadAndQueue({
+            userId: currentUser.id,
             fileName: file.name,
             mimeType: file.type,
             bytes,
@@ -84,6 +160,8 @@ export const createDocumentController = (documentService: IDocumentService) =>
         response: {
           200: uploadDocumentResponseSchema,
           400: t.Object({ message: t.String() }),
+          401: t.Object({ message: t.String() }),
+          429: t.Object({ message: t.String() }),
           500: t.Object({ message: t.String() }),
         },
         detail: {
@@ -94,12 +172,16 @@ export const createDocumentController = (documentService: IDocumentService) =>
     )
     .get(
       "/:id/status",
-      async ({ params, set }) => {
+      async ({ params, set, currentUser }) => {
         try {
+          if (!currentUser) {
+            set.status = 401;
+            return { message: "Unauthorized" };
+          }
           logger.info("documents.status.request.received", {
             documentId: params.id,
           });
-          const status = await documentService.getStatus(params.id);
+          const status = await documentService.getStatus(params.id, currentUser.id);
           if (!status) {
             set.status = 404;
             logger.error("documents.status.not_found", {
@@ -113,6 +195,10 @@ export const createDocumentController = (documentService: IDocumentService) =>
           });
           return status;
         } catch (e) {
+          if (e instanceof AppError) {
+            set.status = e.statusCode;
+            return { message: e.message };
+          }
           const message = e instanceof Error ? e.message : "Unexpected status check error";
           set.status = 500;
           logger.error("documents.status.request.failed", {
@@ -129,6 +215,8 @@ export const createDocumentController = (documentService: IDocumentService) =>
         }),
         response: {
           200: documentStatusResponseSchema,
+          401: t.Object({ message: t.String() }),
+          403: t.Object({ message: t.String() }),
           404: t.Object({ message: t.String() }),
           500: t.Object({ message: t.String() }),
         },
@@ -140,15 +228,23 @@ export const createDocumentController = (documentService: IDocumentService) =>
     )
     .get(
       "/:id/flashcards",
-      async ({ params, set }) => {
+      async ({ params, set, currentUser }) => {
         try {
-          const payload = await documentService.getFlashcards(params.id);
+          if (!currentUser) {
+            set.status = 401;
+            return { message: "Unauthorized" };
+          }
+          const payload = await documentService.getFlashcards(params.id, currentUser.id);
           if (!payload) {
             set.status = 404;
             return { message: "Document not found" };
           }
           return payload;
         } catch (e) {
+          if (e instanceof AppError) {
+            set.status = e.statusCode;
+            return { message: e.message };
+          }
           const message = e instanceof Error ? e.message : "Unexpected flashcards fetch error";
           set.status = 500;
           return { message };
@@ -160,6 +256,8 @@ export const createDocumentController = (documentService: IDocumentService) =>
         }),
         response: {
           200: documentFlashcardsResponseSchema,
+          401: t.Object({ message: t.String() }),
+          403: t.Object({ message: t.String() }),
           404: t.Object({ message: t.String() }),
           500: t.Object({ message: t.String() }),
         },
@@ -171,15 +269,23 @@ export const createDocumentController = (documentService: IDocumentService) =>
     )
     .get(
       "/:id/quizzes",
-      async ({ params, set }) => {
+      async ({ params, set, currentUser }) => {
         try {
-          const payload = await documentService.getQuizzes(params.id);
+          if (!currentUser) {
+            set.status = 401;
+            return { message: "Unauthorized" };
+          }
+          const payload = await documentService.getQuizzes(params.id, currentUser.id);
           if (!payload) {
             set.status = 404;
             return { message: "Document not found" };
           }
           return payload;
         } catch (e) {
+          if (e instanceof AppError) {
+            set.status = e.statusCode;
+            return { message: e.message };
+          }
           const message = e instanceof Error ? e.message : "Unexpected quizzes fetch error";
           set.status = 500;
           return { message };
@@ -191,6 +297,8 @@ export const createDocumentController = (documentService: IDocumentService) =>
         }),
         response: {
           200: documentQuizzesResponseSchema,
+          401: t.Object({ message: t.String() }),
+          403: t.Object({ message: t.String() }),
           404: t.Object({ message: t.String() }),
           500: t.Object({ message: t.String() }),
         },
@@ -202,15 +310,23 @@ export const createDocumentController = (documentService: IDocumentService) =>
     )
     .get(
       "/:id/notes",
-      async ({ params, set }) => {
+      async ({ params, set, currentUser }) => {
         try {
-          const payload = await documentService.getNotes(params.id);
+          if (!currentUser) {
+            set.status = 401;
+            return { message: "Unauthorized" };
+          }
+          const payload = await documentService.getNotes(params.id, currentUser.id);
           if (!payload) {
             set.status = 404;
             return { message: "Document not found" };
           }
           return payload;
         } catch (e) {
+          if (e instanceof AppError) {
+            set.status = e.statusCode;
+            return { message: e.message };
+          }
           const message = e instanceof Error ? e.message : "Unexpected notes fetch error";
           set.status = 500;
           return { message };
@@ -222,12 +338,51 @@ export const createDocumentController = (documentService: IDocumentService) =>
         }),
         response: {
           200: documentNotesResponseSchema,
+          401: t.Object({ message: t.String() }),
+          403: t.Object({ message: t.String() }),
           404: t.Object({ message: t.String() }),
           500: t.Object({ message: t.String() }),
         },
         detail: {
           tags: ["Documents"],
           summary: "Get notes by document id",
+        },
+      },
+    )
+    .delete(
+      "/:id",
+      async ({ params, set, currentUser }) => {
+        try {
+          if (!currentUser) {
+            set.status = 401;
+            return { message: "Unauthorized" };
+          }
+          await documentService.deleteDocument(params.id, currentUser.id);
+          return { success: true };
+        } catch (e) {
+          if (e instanceof AppError && (e.statusCode === 403 || e.statusCode === 404)) {
+            set.status = e.statusCode;
+            return { message: e.message };
+          }
+          const message = e instanceof Error ? e.message : "Unexpected delete error";
+          set.status = 500;
+          return { message };
+        }
+      },
+      {
+        params: t.Object({
+          id: t.String(),
+        }),
+        response: {
+          200: t.Object({ success: t.Boolean() }),
+          401: t.Object({ message: t.String() }),
+          403: t.Object({ message: t.String() }),
+          404: t.Object({ message: t.String() }),
+          500: t.Object({ message: t.String() }),
+        },
+        detail: {
+          tags: ["Documents"],
+          summary: "Delete current user's document with storage cleanup",
         },
       },
     );

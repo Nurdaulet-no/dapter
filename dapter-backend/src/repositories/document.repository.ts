@@ -1,6 +1,7 @@
 import type { DocumentStatus, PrismaClient } from "@prisma/client";
 import { logger } from "../config/logger";
 import type {
+  DocumentListItemView,
   DocumentFlashcardsView,
   DocumentNotesView,
   DocumentQuizzesView,
@@ -11,8 +12,9 @@ import type {
 
 export interface IDocumentRepository {
   createDocument(input: DocumentRegistrationInput): Promise<{ id: string }>;
-  getById(id: string): Promise<{
+  getById(id: string, userId?: string): Promise<{
     id: string;
+    userId: string;
     fileKey: string;
     fileName: string;
     mimeType: string;
@@ -21,10 +23,12 @@ export interface IDocumentRepository {
   } | null>;
   markCompleted(id: string, artifacts: LearningArtifactInput): Promise<void>;
   markFailed(id: string, errorMessage: string): Promise<void>;
-  getDocumentStatus(id: string): Promise<DocumentStatusView | null>;
-  getDocumentFlashcards(id: string): Promise<DocumentFlashcardsView | null>;
-  getDocumentQuizzes(id: string): Promise<DocumentQuizzesView | null>;
-  getDocumentNotes(id: string): Promise<DocumentNotesView | null>;
+  getDocumentStatus(id: string, userId: string): Promise<DocumentStatusView | null>;
+  getDocumentFlashcards(id: string, userId: string): Promise<DocumentFlashcardsView | null>;
+  getDocumentQuizzes(id: string, userId: string): Promise<DocumentQuizzesView | null>;
+  getDocumentNotes(id: string, userId: string): Promise<DocumentNotesView | null>;
+  getDocumentsByUserId(userId: string): Promise<DocumentListItemView[]>;
+  deleteById(id: string, userId: string): Promise<void>;
 }
 
 export class DocumentRepository implements IDocumentRepository {
@@ -45,18 +49,20 @@ export class DocumentRepository implements IDocumentRepository {
     return created;
   }
 
-  public async getById(id: string): Promise<{
+  public async getById(id: string, userId?: string): Promise<{
     id: string;
+    userId: string;
     fileKey: string;
     fileName: string;
     mimeType: string;
     status: DocumentStatus;
     error: string | null;
   } | null> {
-    const document = await this.prisma.document.findUnique({
-      where: { id },
+    const document = await this.prisma.document.findFirst({
+      where: userId ? { id, userId } : { id },
       select: {
         id: true,
+        userId: true,
         fileKey: true,
         fileName: true,
         mimeType: true,
@@ -115,9 +121,9 @@ export class DocumentRepository implements IDocumentRepository {
     });
   }
 
-  public async getDocumentStatus(id: string): Promise<DocumentStatusView | null> {
-    const doc = await this.prisma.document.findUnique({
-      where: { id },
+  public async getDocumentStatus(id: string, userId: string): Promise<DocumentStatusView | null> {
+    const doc = await this.prisma.document.findFirst({
+      where: { id, userId },
       include: {
         notes: true,
         flashcards: true,
@@ -172,9 +178,9 @@ export class DocumentRepository implements IDocumentRepository {
     };
   }
 
-  public async getDocumentFlashcards(id: string): Promise<DocumentFlashcardsView | null> {
-    const doc = await this.prisma.document.findUnique({
-      where: { id },
+  public async getDocumentFlashcards(id: string, userId: string): Promise<DocumentFlashcardsView | null> {
+    const doc = await this.prisma.document.findFirst({
+      where: { id, userId },
       include: { flashcards: true },
     });
 
@@ -197,9 +203,9 @@ export class DocumentRepository implements IDocumentRepository {
     };
   }
 
-  public async getDocumentQuizzes(id: string): Promise<DocumentQuizzesView | null> {
-    const doc = await this.prisma.document.findUnique({
-      where: { id },
+  public async getDocumentQuizzes(id: string, userId: string): Promise<DocumentQuizzesView | null> {
+    const doc = await this.prisma.document.findFirst({
+      where: { id, userId },
       include: { quizzes: true },
     });
 
@@ -224,9 +230,9 @@ export class DocumentRepository implements IDocumentRepository {
     };
   }
 
-  public async getDocumentNotes(id: string): Promise<DocumentNotesView | null> {
-    const doc = await this.prisma.document.findUnique({
-      where: { id },
+  public async getDocumentNotes(id: string, userId: string): Promise<DocumentNotesView | null> {
+    const doc = await this.prisma.document.findFirst({
+      where: { id, userId },
       include: { notes: true },
     });
 
@@ -247,5 +253,37 @@ export class DocumentRepository implements IDocumentRepository {
             }))
           : undefined,
     };
+  }
+
+  public async getDocumentsByUserId(userId: string): Promise<DocumentListItemView[]> {
+    const rows = await this.prisma.document.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        fileName: true,
+        mimeType: true,
+        fileSize: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    return rows.map((row) => ({
+      documentId: row.id,
+      fileName: row.fileName,
+      mimeType: row.mimeType,
+      fileSize: row.fileSize,
+      status: row.status,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    }));
+  }
+
+  public async deleteById(id: string, userId: string): Promise<void> {
+    await this.prisma.document.deleteMany({
+      where: { id, userId },
+    });
   }
 }

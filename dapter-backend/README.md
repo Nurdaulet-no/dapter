@@ -82,6 +82,10 @@ bun run prisma:migrate:dev --name init
 ```bash
 bun run dev
 ```
+To test backend u can use script e2e-endpoints.ts which runs through all endpoints in sequence
+```bash
+bun run test:e2e
+```
 
 6. Verify API is alive:
 
@@ -106,12 +110,28 @@ bun run dev
 Server endpoints:
 
 - `GET /health`
+- `POST /auth/register`
+- `POST /auth/login`
+- `POST /auth/refresh`
+- `POST /auth/logout`
+- `GET /auth/google`
+- `GET /auth/google/callback`
+- `GET /documents` (requires Bearer token)
 - `POST /documents/upload` (multipart form-data, field `file`)
-- `GET /documents/:id/status`
-- `GET /documents/:id/flashcards`
-- `GET /documents/:id/quizzes`
-- `GET /documents/:id/notes`
+- `GET /documents/:id/status` (requires Bearer token)
+- `GET /documents/:id/flashcards` (requires Bearer token)
+- `GET /documents/:id/quizzes` (requires Bearer token)
+- `GET /documents/:id/notes` (requires Bearer token)
+- `DELETE /documents/:id` (requires Bearer token)
 - `GET /docs` (Swagger)
+
+Required auth env values:
+
+- `JWT_SECRET`
+- `JWT_REFRESH_SECRET`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_REDIRECT_URI`
 
 ## Architecture
 

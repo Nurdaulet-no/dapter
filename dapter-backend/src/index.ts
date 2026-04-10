@@ -1,20 +1,27 @@
+import { randomUUID } from "node:crypto";
 import { cors } from "@elysiajs/cors";
 import { swagger } from "@elysiajs/swagger";
 import { Elysia } from "elysia";
 import { env } from "./config/env";
+import { AppError } from "./errors/app-error";
 import { logger } from "./config/logger";
 import { prisma } from "./config/prisma";
+import { createAuthController } from "./controllers/auth.controller";
 import { createDocumentController } from "./controllers/document.controller";
+import { AuthRepository } from "./repositories/auth.repository";
 import { DocumentRepository } from "./repositories/document.repository";
 import { AIService } from "./services/ai.service";
+import { AuthService } from "./services/auth.service";
 import { DocumentService } from "./services/document.service";
 import { ExtractionService } from "./services/extraction.service";
 import { StorageService } from "./services/storage.service";
 
+const authRepository = new AuthRepository(prisma);
 const documentRepository = new DocumentRepository(prisma);
 const storageService = new StorageService();
 const extractionService = new ExtractionService();
 const aiService = new AIService();
+const authService = new AuthService(authRepository);
 const documentService = new DocumentService(
   documentRepository,
   storageService,
@@ -26,7 +33,7 @@ const app = new Elysia()
   .use(
     cors({
       origin: true,
-      methods: ["GET", "POST", "OPTIONS"],
+      methods: ["GET", "POST", "DELETE", "OPTIONS"],
     }),
   )
   .use(
@@ -41,7 +48,14 @@ const app = new Elysia()
     }),
   )
   .onRequest(({ request }) => {
+    const requestId = randomUUID();
+    const ip =
+      request.headers.get("x-forwarded-for") ??
+      request.headers.get("x-real-ip") ??
+      "unknown";
     logger.info("http.request.received", {
+      requestId,
+      ip,
       method: request.method,
       path: new URL(request.url).pathname,
     });
@@ -54,20 +68,37 @@ const app = new Elysia()
     });
   })
   .get("/health", () => ({ status: "ok" }))
-  .use(createDocumentController(documentService))
+  .use(createAuthController(authService))
+  .use(createDocumentController(documentService, authService))
   .onError(({ code, error, set }) => {
     logger.error("http.request.failed", {
       code,
       status: set.status,
       error,
     });
+    if (error instanceof AppError) {
+      set.status = error.statusCode;
+      return { message: error.message };
+    }
     if (code === "NOT_FOUND") {
       set.status = 404;
-      return { message: "Route not found" };
+      return {
+        error: {
+          code: "ROUTE_NOT_FOUND",
+          message: "Route not found",
+          statusCode: 404,
+        },
+      };
     }
     set.status = 500;
     const message = error instanceof Error ? error.message : "Internal server error";
-    return { message };
+    return {
+      error: {
+        code: "INTERNAL_SERVER_ERROR",
+        message,
+        statusCode: 500,
+      },
+    };
   });
 
 app.listen(env.port);

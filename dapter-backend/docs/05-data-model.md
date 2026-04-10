@@ -15,6 +15,29 @@ Source: `prisma/schema.prisma`
 
 ## Models
 
+### `User`
+
+- `id` (cuid, PK)
+- `email` (unique)
+- `passwordHash` (nullable)
+- `googleId` (nullable, unique)
+- `createdAt`
+- `updatedAt`
+
+Relations:
+- `documents` (1:N)
+- `sessions` (1:N)
+
+### `Session`
+
+- `id` (cuid, PK)
+- `userId` (FK -> User)
+- `refreshTokenHash`
+- `refreshTokenVersion`
+- `expiresAt`
+- `createdAt`
+- `updatedAt`
+
 ### `Document`
 
 - `id` (cuid, PK)
@@ -26,13 +49,20 @@ Source: `prisma/schema.prisma`
 - `type` (`DocumentType`)
 - `status` (`DocumentStatus`)
 - `error` (nullable)
+- `userId` (FK -> User)
 - `createdAt`
 - `updatedAt`
 
 Relations:
+- `user` (N:1)
 - `flashcards` (1:N)
 - `quizzes` (1:N)
 - `notes` (1:N)
+
+Indexes/constraints:
+- unique: `fileKey`
+- unique composite: `[id, userId]`
+- index: `[userId, createdAt]`
 
 ### `Flashcard`
 

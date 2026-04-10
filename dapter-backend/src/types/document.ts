@@ -1,6 +1,7 @@
 import type { DocumentStatus, DocumentType } from "@prisma/client";
 
 export interface DocumentRegistrationInput {
+  userId: string;
   fileName: string;
   mimeType: string;
   fileSize: number;
@@ -33,6 +34,16 @@ export interface DocumentStatusView {
     correctOption: number;
     explanation?: string;
   }>;
+}
+
+export interface DocumentListItemView {
+  documentId: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  status: DocumentStatus;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface DocumentFlashcardsView {

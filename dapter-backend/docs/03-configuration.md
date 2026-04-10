@@ -9,6 +9,11 @@ Primary configuration is loaded from `.env` via `src/config/env.ts`.
 - `S3_BUCKET`
 - `S3_ACCESS_KEY_ID`
 - `S3_SECRET_ACCESS_KEY`
+- `JWT_SECRET`
+- `JWT_REFRESH_SECRET`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_REDIRECT_URI`
 
 ## Optional / Recommended
 
@@ -55,4 +60,10 @@ AI_MODEL_GROQ=llama-3.3-70b-versatile
 AI_MODEL_OPENROUTER=meta-llama/llama-3.3-70b-instruct:free
 
 MAX_UPLOAD_SIZE_BYTES=20971520
+
+JWT_SECRET=<strong-random-secret>
+JWT_REFRESH_SECRET=<strong-random-secret>
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=http://localhost:3000/auth/google/callback
 ```

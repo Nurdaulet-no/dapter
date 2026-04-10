@@ -21,6 +21,12 @@ Complete map of all added logging points:
   - `http.request.received`
   - `http.request.completed`
   - `http.request.failed`
+- Auth:
+  - `auth.register.failed`
+  - `auth.login.failed`
+  - `auth.refresh.failed`
+  - `auth.logout.failed`
+  - `auth.google.callback.failed`
 - Pipeline:
   - `pipeline.upload_and_queue.started`
   - `pipeline.process_document.started`

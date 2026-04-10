@@ -6,6 +6,18 @@ export const uploadDocumentResponseSchema = t.Object({
   status: t.Literal("PROCESSING"),
 });
 
+export const documentListResponseSchema = t.Array(
+  t.Object({
+    documentId: t.String(),
+    fileName: t.String(),
+    mimeType: t.String(),
+    fileSize: t.Number(),
+    status: t.Union([t.Literal("PROCESSING"), t.Literal("COMPLETED"), t.Literal("FAILED")]),
+    createdAt: t.String(),
+    updatedAt: t.String(),
+  }),
+);
+
 export const documentStatusResponseSchema = t.Object({
   documentId: t.String(),
   status: t.Union([t.Literal("PROCESSING"), t.Literal("COMPLETED"), t.Literal("FAILED")]),

@@ -25,4 +25,9 @@ export const env = {
   aiGroqModel: Bun.env.AI_MODEL_GROQ ?? "llama-3.3-70b-versatile",
   aiOpenRouterModel: Bun.env.AI_MODEL_OPENROUTER ?? "meta-llama/llama-3.3-70b-instruct:free",
   maxUploadSizeBytes: Number(Bun.env.MAX_UPLOAD_SIZE_BYTES ?? 20 * 1024 * 1024),
+  jwtSecret: requireEnv("JWT_SECRET"),
+  jwtRefreshSecret: requireEnv("JWT_REFRESH_SECRET"),
+  googleClientId: requireEnv("GOOGLE_CLIENT_ID"),
+  googleClientSecret: requireEnv("GOOGLE_CLIENT_SECRET"),
+  googleRedirectUri: requireEnv("GOOGLE_REDIRECT_URI"),
 };

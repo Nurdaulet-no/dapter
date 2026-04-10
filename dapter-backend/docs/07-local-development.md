@@ -24,7 +24,7 @@ cp .env.example .env
 
 ```bash
 bun run prisma:generate
-bun run prisma:migrate:dev --name init
+bun run prisma:migrate:dev --name auth_multitenancy
 ```
 
 5. Start API:
@@ -54,3 +54,14 @@ Recommended `DATABASE_URL`:
 ```dotenv
 DATABASE_URL="postgresql://postgres:password@localhost:5432/dapter_local"
 ```
+
+## Migration Recovery (Dev Only)
+
+If Prisma reports migration drift/conflict (for example after editing an already-applied migration):
+
+```bash
+bun x prisma migrate reset --force
+bun run prisma:migrate:dev --name auth_multitenancy
+```
+
+This resets local dev data and reapplies migrations from scratch.

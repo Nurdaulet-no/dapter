@@ -1,4 +1,4 @@
-import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { randomUUID } from "node:crypto";
 import { env } from "../config/env";
 import { logger } from "../config/logger";
@@ -11,6 +11,7 @@ export interface IStorageService {
     body: Uint8Array;
   }): Promise<{ fileKey: string; fileUrl: string }>;
   download(fileKey: string): Promise<Uint8Array>;
+  delete(fileKey: string): Promise<void>;
 }
 
 export class StorageService implements IStorageService {
@@ -72,5 +73,22 @@ export class StorageService implements IStorageService {
       byteLength: bytes.byteLength,
     });
     return bytes;
+  }
+
+  public async delete(fileKey: string): Promise<void> {
+    logger.info("storage.delete.started", {
+      fileKey,
+      bucket: env.s3Bucket,
+    });
+    await s3Client.send(
+      new DeleteObjectCommand({
+        Bucket: env.s3Bucket,
+        Key: fileKey,
+      }),
+    );
+    logger.info("storage.delete.completed", {
+      fileKey,
+      bucket: env.s3Bucket,
+    });
   }
 }

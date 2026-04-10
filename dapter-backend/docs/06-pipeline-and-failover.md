@@ -2,18 +2,29 @@
 
 ## Document Processing Pipeline
 
-1. `POST /documents/upload` receives a file.
-2. The controller validates MIME/size.
-3. `StorageService.upload()` stores the file in S3-compatible storage.
-4. `DocumentRepository.createDocument()` creates a `Document` with `PROCESSING` status.
-5. `DocumentService.processDocument(documentId)` starts in background.
-6. `StorageService.download()` downloads the file from storage.
-7. `ExtractionService.extractText()` extracts text:
+1. Client authenticates and sends Bearer access token.
+2. `POST /documents/upload` receives file from authenticated user.
+3. Controller validates MIME/size and upload rate limits.
+4. `StorageService.upload()` stores file in S3-compatible storage.
+5. `DocumentRepository.createDocument()` creates `Document` with:
+   - `PROCESSING` status
+   - `userId` owner binding
+6. `DocumentService.processDocument(documentId)` starts asynchronously.
+7. `StorageService.download()` downloads source file from storage.
+8. `ExtractionService.extractText()` extracts text:
    - PDF -> `pdf-parse`
    - PPTX -> XML parsing with `jszip` + `fast-xml-parser`
-8. `AIService.generateLearningArtifacts()` generates notes/flashcards/quizzes.
-9. `DocumentRepository.markCompleted()` persists artifacts and sets `COMPLETED`.
-10. On any error: `DocumentRepository.markFailed()` + `FAILED` status.
+9. `AIService.generateLearningArtifacts()` produces notes/flashcards/quizzes.
+10. `DocumentRepository.markCompleted()` persists artifacts and sets `COMPLETED`.
+11. On any error: `DocumentRepository.markFailed()` + `FAILED` status.
+
+## Ownership and access control
+
+- All document retrieval endpoints are protected.
+- Service/repository enforce ownership checks:
+  - foreign document access -> `403`
+  - missing document -> `404`
+- Deletion is owner-only and includes both DB and storage cleanup.
 
 ## AI failover
 
