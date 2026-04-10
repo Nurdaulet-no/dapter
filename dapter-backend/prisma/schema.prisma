@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DocumentStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum DocumentType {
+  PDF
+  PPTX
+}
+
+model Document {
+  id         String         @id @default(cuid())
+  fileName   String
+  mimeType   String
+  fileSize   Int
+  fileKey    String         @unique
+  fileUrl    String
+  type       DocumentType
+  status     DocumentStatus @default(PROCESSING)
+  error      String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  flashcards Flashcard[]
+  quizzes    Quiz[]
+  notes      Note[]
+}
+
+model Flashcard {
+  id         String   @id @default(cuid())
+  question   String
+  answer     String
+  documentId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+model Quiz {
+  id            String   @id @default(cuid())
+  question      String
+  options       Json
+  correctOption Int
+  explanation   String?
+  documentId    String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  document      Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+model Note {
+  id         String   @id @default(cuid())
+  title      String
+  content    String
+  documentId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
