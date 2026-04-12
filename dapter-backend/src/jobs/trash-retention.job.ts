@@ -15,25 +15,22 @@ export const startTrashRetentionJob = (
 
   const runOnce = async () => {
     if (inProgress) {
-      logger.debug("documents.trash.cleanup.skipped_already_running");
       return;
     }
     inProgress = true;
-    logger.info("documents.trash.cleanup.started", {
-      retentionDays: config.retentionDays,
-      batchSize: config.batchSize,
-    });
     try {
       const result = await documentService.cleanupExpiredTrash(
         config.retentionDays,
         config.batchSize,
       );
-      logger.info("documents.trash.cleanup.completed", {
-        retentionDays: config.retentionDays,
-        scanned: result.scanned,
-        deleted: result.deleted,
-        failed: result.failed,
-      });
+      if (result.scanned > 0 || result.deleted > 0 || result.failed > 0) {
+        logger.info("documents.trash.cleanup.completed", {
+          retentionDays: config.retentionDays,
+          scanned: result.scanned,
+          deleted: result.deleted,
+          failed: result.failed,
+        });
+      }
     } finally {
       inProgress = false;
     }

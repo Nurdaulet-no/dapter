@@ -34,7 +34,7 @@ const documentService = new DocumentService(
 const app = new Elysia()
   .use(
     cors({
-      origin: env.frontendBaseUrl,
+      origin: env.frontendBaseUrls,
       methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
       credentials: true,
     }),

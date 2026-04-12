@@ -269,10 +269,6 @@ export class DocumentService implements IDocumentService {
     batchSize: number,
   ): Promise<{ scanned: number; queued: number; failed: number }> {
     const queued = await this.repository.getQueuedFlashcards(batchSize);
-    logger.debug("pipeline.flashcard_image.batch.started", {
-      batchSize,
-      queued: queued.length,
-    });
     let processed = 0;
     let failed = 0;
     for (const item of queued) {

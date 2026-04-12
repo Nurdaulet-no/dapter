@@ -41,3 +41,9 @@ Complete map of all added logging points:
   - `ai.failover.attempt.started`
   - `ai.failover.attempt.failed`
   - `ai.failover.attempt.completed`
+- Background jobs:
+  - `documents.trash.cleanup.started`
+  - `documents.trash.cleanup.completed`
+  - `documents.trash.cleanup.run_failed`
+  - `pipeline.flashcard_image.queue.completed`
+  - `pipeline.flashcard_image.queue.run_failed`

@@ -1,8 +1,17 @@
 # 4. API Reference
 
-Base URL (local): `http://localhost:3000`
-
+Base URL (local): `http://localhost:3000`  
 Swagger: `GET /docs`
+
+Important behavior notes:
+
+1. Auth routes mostly rely on **HttpOnly cookies** for session continuity.
+2. Documents routes accept either:
+   - `Authorization: Bearer <access-token>`, or
+   - access cookie (`dapter_access_token`).
+3. Error payloads are mostly `{ "message": "..." }` on controller-level errors.
+
+---
 
 ## Health
 
@@ -11,10 +20,12 @@ Swagger: `GET /docs`
 Response:
 
 ```json
-{"status":"ok"}
+{ "status": "ok" }
 ```
 
-## Authentication
+---
+
+## Authentication (`/auth`)
 
 ### `POST /auth/register`
 
@@ -27,21 +38,27 @@ Body:
 }
 ```
 
-Success: `201`
+Behavior:
+- rate limit by IP (10 requests / 15 min shared with login)
+- creates user
+- generates random unique nickname (7 lowercase letters)
+- issues access/refresh tokens
+- sets auth cookies
+
+Success `201`:
 
 ```json
 {
-  "user": { "id": "cm...", "email": "user@example.com" },
-  "tokens": { "accessToken": "...", "refreshToken": "..." }
+  "user": {
+    "id": "cm...",
+    "email": "user@example.com",
+    "nickname": "abcdeff"
+  },
+  "authenticated": true
 }
 ```
 
-Errors:
-- `409` duplicate email
-- `400` validation failure
-- `429` rate limit
-
----
+Errors: `400`, `409`, `429`
 
 ### `POST /auth/login`
 
@@ -54,17 +71,29 @@ Body:
 }
 ```
 
-Success: `200` (same response shape as register)
+Behavior:
+- same rate limit bucket as register
+- verifies password hash
+- sets auth cookies
 
-Errors:
-- `401` invalid credentials
-- `429` rate limit
+Success `200`:
 
----
+```json
+{
+  "user": {
+    "id": "cm...",
+    "email": "user@example.com",
+    "nickname": "abcdeff"
+  },
+  "authenticated": true
+}
+```
+
+Errors: `401`, `429`
 
 ### `POST /auth/refresh`
 
-Body:
+Body (optional):
 
 ```json
 {
@@ -72,16 +101,29 @@ Body:
 }
 ```
 
-Success: `200` (new rotated access/refresh pair)
+Behavior:
+- refresh token is read from body or `dapter_refresh_token` cookie
+- rotates refresh token/session hash
+- sets new auth cookies
 
-Errors:
-- `401` invalid/expired/revoked refresh token
+Success `200`:
 
----
+```json
+{
+  "user": {
+    "id": "cm...",
+    "email": "user@example.com",
+    "nickname": "abcdeff"
+  },
+  "authenticated": true
+}
+```
+
+Errors: `401`
 
 ### `POST /auth/logout`
 
-Body:
+Body (optional):
 
 ```json
 {
@@ -89,42 +131,99 @@ Body:
 }
 ```
 
-Success:
+Behavior:
+- revoke refresh session when token provided
+- clear auth cookies
+
+Success `200`:
 
 ```json
 { "success": true }
 ```
 
----
+Errors: `400`
 
-### `GET /auth/google`
+### `GET /auth/me`
 
-Starts OAuth2 authorization flow, returns redirect (`302`) to Google.
+Behavior:
+- reads access token from cookie
+- verifies user
 
-### `GET /auth/google/callback`
-
-Handles OAuth callback and returns auth payload:
+Success `200`:
 
 ```json
 {
-  "user": { "id": "cm...", "email": "google-user@example.com" },
-  "tokens": { "accessToken": "...", "refreshToken": "..." }
+  "user": {
+    "id": "cm...",
+    "email": "user@example.com",
+    "nickname": "abcdeff"
+  },
+  "authenticated": true
 }
 ```
 
-## Documents
+Errors: `401`
 
-All `/documents/*` routes require:
+### `PATCH /auth/me/nickname`
 
-```http
-Authorization: Bearer <access-token>
+Body:
+
+```json
+{
+  "nickname": "newname"
+}
 ```
+
+Rules:
+- normalized to lowercase
+- regex: `^[a-z0-9]{1,7}$`
+- must be unique
+
+Success `200`:
+
+```json
+{
+  "user": {
+    "id": "cm...",
+    "email": "user@example.com",
+    "nickname": "newname"
+  },
+  "authenticated": true
+}
+```
+
+Errors: `400`, `401`, `409`
+
+### `GET /auth/google`
+
+Behavior:
+- creates oauth state + PKCE verifier
+- responds with `302` redirect to Google
+
+### `GET /auth/google/callback`
+
+Query:
+- `code`
+- `state`
+
+Behavior:
+- validates oauth state/verifier
+- upserts Google user
+- sets auth cookies
+- redirects `302` to frontend `/u/:nickname`
+- on failure redirects `302` to `/login?error=google_oauth_failed`
+
+---
+
+## Documents (`/documents`)
+
+All routes below require authenticated user.
 
 ### `GET /documents`
 
-Purpose: return current user's documents ordered by creation date (desc).
+Returns current user non-deleted documents sorted by `createdAt DESC`.
 
-Response:
+Success `200`:
 
 ```json
 [
@@ -140,20 +239,30 @@ Response:
 ]
 ```
 
+Errors: `401`, `500`
+
 ### `POST /documents/upload`
 
-Purpose: upload PDF/PPTX, register the document, and start background processing.
-
 Request: `multipart/form-data`
-- field: `file`
-- optional field: `selectedStartPage` (number >= 1)
-- optional field: `selectedEndPage` (number >= 1)
 
-Validation rules:
-- when both are provided, `selectedStartPage <= selectedEndPage`
-- selected range cannot exceed `MAX_SELECTED_PAGES`
+Fields:
+- `file` (required)
+- `selectedStartPage` (optional numeric, >= 1)
+- `selectedEndPage` (optional numeric, >= 1)
+- `selectedPages` (optional CSV string, e.g. `"1,3,8,9"`)
 
-Success response:
+Validation:
+- MIME only:
+  - `application/pdf`
+  - `application/vnd.openxmlformats-officedocument.presentationml.presentation`
+- size <= `MAX_UPLOAD_SIZE_BYTES`
+- if both range bounds are set: `selectedStartPage <= selectedEndPage`
+- selected range length <= `MAX_SELECTED_PAGES` (when CSV not provided)
+- selectedPages parsed as int >= 1, deduplicated, sorted
+- selectedPages count <= `MAX_SELECTED_PAGES`
+- upload rate limit: 8 per minute per user/IP key
+
+Success `200`:
 
 ```json
 {
@@ -162,58 +271,54 @@ Success response:
 }
 ```
 
-Error responses:
-- `400` — invalid MIME, invalid size, or missing file
-- `401` — unauthorized
-- `429` — upload rate limit exceeded
-- `500` — internal server error
-
----
+Errors: `400`, `401`, `429`, `500`
 
 ### `GET /documents/:id/status`
 
-Purpose: full document status + all artifacts (when `COMPLETED`).
+Returns full processing status and stage details.
 
-Response fields:
-- `documentId`
-- `status`: `PROCESSING | COMPLETED | FAILED`
-- `error` (optional)
-- `notes` (optional)
-- `flashcards` (optional)
-- `quizzes` (optional)
+Success `200` includes:
+- `status`, `error`
+- `notebookStatus`, `notebookError`
+- `flashcardsStatus`, `flashcardsError`
+- `flashcardsEnrichmentStatus`, `flashcardsEnrichmentError`
+- `quizzesStatus`, `quizzesError`
+- `notes`, `flashcards`, `quizzes` (only when relevant stage completed)
 
-Error responses:
-- `401` — unauthorized
-- `403` — document belongs to another user
-- `404` — document not found
-
----
+Errors: `401`, `403`, `404`, `500`
 
 ### `GET /documents/:id/flashcards`
 
-Purpose: return only flashcards for a document.
+Flashcards-specific payload with all stage status fields.
 
-Response fields:
-- `documentId`
-- `status`
-- `error` (optional)
-- `flashcards` (only when `COMPLETED`)
+Errors: `401`, `403`, `404`, `500`
 
-Error responses:
-- `401`, `403`, `404`
+### `GET /documents/:id/quizzes`
 
----
+Quizzes-specific payload with all stage status fields.
+
+Errors: `401`, `403`, `404`, `500`
+
+### `GET /documents/:id/notes`
+
+Notes-specific payload with all stage status fields.
+
+Errors: `401`, `403`, `404`, `500`
 
 ### `POST /documents/:id/flashcards/:flashcardId/image/request`
 
-Purpose: queue lazy image generation for one flashcard.
+Queues image generation for one flashcard.
 
-Behavior:
-- requires ownership of document
-- only visual-eligible cards can be queued (`visualNeedScore >= 0.6`)
-- transitions `imageStatus` to `queued` when allowed
+Rules:
+- must own document
+- flashcard must exist
+- `visualNeedScore >= 0.6` required
+- allowed transitions to queued from:
+  - `null`
+  - `not_requested`
+  - `failed`
 
-Success response:
+Success `200`:
 
 ```json
 {
@@ -227,93 +332,72 @@ Success response:
 }
 ```
 
-Error responses:
-- `401` unauthorized
-- `403` forbidden (foreign document)
-- `404` document/flashcard not found
-- `409` visual image is not required for this flashcard
+Errors: `401`, `403`, `404`, `409`, `500`
 
----
+### `POST /documents/:id/retry/:stage`
 
-### `GET /documents/:id/quizzes`
+Stage retry trigger.
 
-Purpose: return only quizzes for a document.
+Allowed `stage` values:
+- `notebook`
+- `flashcards`
+- `quizzes`
 
-Response fields:
-- `documentId`
-- `status`
-- `error` (optional)
-- `quizzes` (only when `COMPLETED`)
+Behavior:
+- async fire-and-forget retry
+- returns immediately
 
-Error responses:
-- `401`, `403`, `404`
-
----
-
-### `GET /documents/:id/notes`
-
-Purpose: return only notes for a document.
-
-Response fields:
-- `documentId`
-- `status`
-- `error` (optional)
-- `notes` (only when `COMPLETED`)
-
-Error responses:
-- `401`, `403`, `404`
-
----
-
-### `DELETE /documents/:id`
-
-Purpose: move current user's document to trash (soft-delete).
-
-Success:
-
-```json
-{ "success": true }
-```
-
----
-
-### `GET /documents/trash`
-
-Purpose: return current user's trashed documents.
-
----
-
-### `POST /documents/:id/restore`
-
-Purpose: restore document from trash.
-
-Success:
-
-```json
-{ "success": true }
-```
-
----
-
-### `DELETE /documents/:id/forever`
-
-Purpose: permanently delete a trashed document and its storage object.
-
-Success:
-
-```json
-{ "success": true }
-```
-
-Error responses:
-- `401` unauthorized
-- `403` forbidden (foreign document)
-- `404` not found
-
-## Common error format
+Success `200`:
 
 ```json
 {
-  "message": "Human-readable error message"
+  "documentId": "cm...",
+  "status": "PROCESSING"
 }
 ```
+
+Errors: `400`, `401`, `403`, `404`, `500`
+
+### `DELETE /documents/:id`
+
+Soft delete (move to trash).
+
+Success `200`:
+
+```json
+{ "success": true }
+```
+
+Errors: `401`, `403`, `404`, `409`, `500`
+
+### `GET /documents/trash`
+
+Returns current user trashed documents (`deletedAt != null`).
+
+Errors: `401`, `500`
+
+### `POST /documents/:id/restore`
+
+Restores trashed document.
+
+Success `200`:
+
+```json
+{ "success": true }
+```
+
+Errors: `401`, `403`, `404`, `409`, `500`
+
+### `DELETE /documents/:id/forever`
+
+Permanent delete:
+- remove object from storage
+- remove DB row
+
+Success `200`:
+
+```json
+{ "success": true }
+```
+
+Errors: `401`, `403`, `404`, `500`

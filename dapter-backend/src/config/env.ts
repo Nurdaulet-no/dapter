@@ -6,6 +6,14 @@ const requireEnv = (key: string): string => {
   return value;
 };
 
+const parseOrigins = (value: string): string[] =>
+  value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const frontendBaseUrls = parseOrigins(Bun.env.FRONTEND_BASE_URLS ?? "http://localhost:3001");
+
 export const env = {
   port: Number(Bun.env.PORT ?? 3000),
   databaseUrl: requireEnv("DATABASE_URL"),
@@ -36,7 +44,8 @@ export const env = {
   googleClientId: requireEnv("GOOGLE_CLIENT_ID"),
   googleClientSecret: requireEnv("GOOGLE_CLIENT_SECRET"),
   googleRedirectUri: requireEnv("GOOGLE_REDIRECT_URI"),
-  frontendBaseUrl: Bun.env.FRONTEND_BASE_URL ?? "http://localhost:3001",
+  frontendBaseUrl: frontendBaseUrls[0] ?? "http://localhost:3001",
+  frontendBaseUrls,
   trashRetentionDays: Number(Bun.env.TRASH_RETENTION_DAYS ?? 7),
   trashCleanupIntervalMinutes: Number(Bun.env.TRASH_CLEANUP_INTERVAL_MINUTES ?? 10),
   trashCleanupBatchSize: Number(Bun.env.TRASH_CLEANUP_BATCH_SIZE ?? 50),

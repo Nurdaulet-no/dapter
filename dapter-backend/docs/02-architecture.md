@@ -27,6 +27,14 @@
 - Handle storage, extraction, and AI operations
 - Do not depend on HTTP context
 - `auth.service.ts`: password auth, refresh rotation, revoke, OAuth callback
+- `document.service.ts`: staged document pipeline orchestration, ownership checks, retry, trash cleanup helpers
+- `ai.service.ts`: schema-first AI generation with provider failover
+- `extraction.service.ts`: PDF/PPTX extraction with selected pages handling
+- `storage.service.ts`: S3-compatible upload/download/delete
+
+### Jobs (`src/jobs`)
+- `trash-retention.job.ts`: periodic permanent cleanup for expired trash
+- `flashcard-image-queue.job.ts`: periodic queued flashcard image processing scaffold
 
 ### Repositories (`src/repositories`)
 - Isolated database access via Prisma
@@ -70,13 +78,18 @@ dapter-backend/
 │   │   ├── extraction.service.ts
 │   │   ├── storage.service.ts
 │   │   └── ai.service.ts
+│   ├── jobs/
+│   │   ├── trash-retention.job.ts
+│   │   └── flashcard-image-queue.job.ts
 │   ├── types/
 │   └── index.ts
 ├── scripts/
-│   └── e2e-endpoints.ts
+│   ├── e2e-endpoints.ts
+│   └── test-selected-pages-extract.ts
 ├── .env
 ├── .env.example
 ├── docker-compose.yml
+├── BACKEND_AI_INSTRUCTION.md
 ├── README.md
 └── TESTING.md
 ```

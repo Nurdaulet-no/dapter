@@ -14,18 +14,19 @@ export const startFlashcardImageQueueJob = (
 
   const runOnce = async () => {
     if (inProgress) {
-      logger.debug("pipeline.flashcard_image.queue.skipped_already_running");
       return;
     }
     inProgress = true;
     try {
       const result = await documentService.processQueuedFlashcardImages(config.batchSize);
-      logger.info("pipeline.flashcard_image.queue.completed", {
-        scanned: result.scanned,
-        queued: result.queued,
-        failed: result.failed,
-        batchSize: config.batchSize,
-      });
+      if (result.scanned > 0 || result.failed > 0) {
+        logger.info("pipeline.flashcard_image.queue.completed", {
+          scanned: result.scanned,
+          queued: result.queued,
+          failed: result.failed,
+          batchSize: config.batchSize,
+        });
+      }
     } finally {
       inProgress = false;
     }

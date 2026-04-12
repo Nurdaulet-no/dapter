@@ -4,30 +4,39 @@
 
 1. Client authenticates and sends Bearer access token.
 2. `POST /documents/upload` receives file from authenticated user.
-3. Controller validates MIME/size and upload rate limits.
+3. Controller validates MIME/size/page limits and upload rate limits.
 4. `StorageService.upload()` stores file in S3-compatible storage.
 5. `DocumentRepository.createDocument()` creates `Document` with:
    - `PROCESSING` status
    - `userId` owner binding
    - optional selected page range metadata
+   - stage statuses initialized (`PENDING`)
 6. `DocumentService.processDocument(documentId)` starts asynchronously.
 7. `StorageService.download()` downloads source file from storage.
 8. `ExtractionService.extractText()` extracts text:
-   - PDF -> `pdf-parse`
-   - PPTX -> XML parsing with `jszip` + `fast-xml-parser`
+    - PDF -> `pdf-parse`
+    - PPTX -> XML parsing with `jszip` + `fast-xml-parser`
+    - optional explicit page list from `selectedPages` upload field
 9. `AIService.generateNotebook()` creates canonical notebook sections.
 10. Notebook is persisted immediately (`notebookStatus=COMPLETED` on success).
 11. `AIService.generateFlashcardsCoreFromNotebook()` creates flashcards core (`question`, `answer`) and persists it as soon as it succeeds.
 12. Flashcards enrichment metadata (`topic`, `iconKey`, `visualNeedScore`, `imagePrompt`, pointer fields) is generated in a non-blocking follow-up call.
 13. `AIService.generateQuizzesFromNotebook()` creates quizzes from notebook text.
 14. Document is marked `COMPLETED` when notebook + flashcards core + quizzes are completed.
-15. If a core stage fails, only that stage is marked failed and status API keeps already saved artifacts available.
+15. If a core stage fails, document status is marked `FAILED`; enrichment stage is non-blocking and can fail independently.
 
 ### Limits and validation
 
-- upload rejects selected ranges larger than `MAX_SELECTED_PAGES`
+- upload rejects selected ranges/lists larger than `MAX_SELECTED_PAGES`
 - processing fails when extracted text exceeds `MAX_EXTRACTED_CHARS`
 - errors are explicit so users can reduce selected range
+
+### Stage status fields exposed to frontend
+
+- `notebookStatus` / `notebookError`
+- `flashcardsStatus` / `flashcardsError`
+- `flashcardsEnrichmentStatus` / `flashcardsEnrichmentError`
+- `quizzesStatus` / `quizzesError`
 
 ## Flashcard image lazy pipeline (provider-agnostic scaffold)
 
