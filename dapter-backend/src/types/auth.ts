@@ -18,5 +18,5 @@ export interface AuthTokens {
 export interface AuthUserView {
   id: string;
   email: string;
+  nickname: string;
 }
-

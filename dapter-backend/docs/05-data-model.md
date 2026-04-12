@@ -19,6 +19,7 @@ Source: `prisma/schema.prisma`
 
 - `id` (cuid, PK)
 - `email` (unique)
+- `nickname` (unique, varchar(7))
 - `passwordHash` (nullable)
 - `googleId` (nullable, unique)
 - `createdAt`
@@ -46,10 +47,13 @@ Relations:
 - `fileSize`
 - `fileKey` (unique, S3 key)
 - `fileUrl`
+- `selectedStartPage` (nullable)
+- `selectedEndPage` (nullable)
 - `type` (`DocumentType`)
 - `status` (`DocumentStatus`)
 - `error` (nullable)
 - `userId` (FK -> User)
+- `deletedAt` (nullable, trash soft-delete marker)
 - `createdAt`
 - `updatedAt`
 
@@ -63,10 +67,20 @@ Indexes/constraints:
 - unique: `fileKey`
 - unique composite: `[id, userId]`
 - index: `[userId, createdAt]`
+- index: `[userId, deletedAt, createdAt]`
 
 ### `Flashcard`
 
 - `id`
+- `topic` (nullable)
+- `iconKey` (nullable)
+- `visualNeedScore` (nullable float)
+- `imagePrompt` (nullable)
+- `imageStatus` (nullable string)
+- `imageUrl` (nullable)
+- `requiresPointer` (nullable bool)
+- `pointerX` (nullable float)
+- `pointerY` (nullable float)
 - `question`
 - `answer`
 - `documentId` (FK -> Document)

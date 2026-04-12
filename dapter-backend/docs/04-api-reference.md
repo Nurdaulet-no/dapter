@@ -146,6 +146,12 @@ Purpose: upload PDF/PPTX, register the document, and start background processing
 
 Request: `multipart/form-data`
 - field: `file`
+- optional field: `selectedStartPage` (number >= 1)
+- optional field: `selectedEndPage` (number >= 1)
+
+Validation rules:
+- when both are provided, `selectedStartPage <= selectedEndPage`
+- selected range cannot exceed `MAX_SELECTED_PAGES`
 
 Success response:
 
@@ -198,6 +204,37 @@ Error responses:
 
 ---
 
+### `POST /documents/:id/flashcards/:flashcardId/image/request`
+
+Purpose: queue lazy image generation for one flashcard.
+
+Behavior:
+- requires ownership of document
+- only visual-eligible cards can be queued (`visualNeedScore >= 0.6`)
+- transitions `imageStatus` to `queued` when allowed
+
+Success response:
+
+```json
+{
+  "documentId": "cm...",
+  "flashcard": {
+    "id": "cm...",
+    "imageStatus": "queued",
+    "imagePrompt": "optional prompt",
+    "visualNeedScore": 0.78
+  }
+}
+```
+
+Error responses:
+- `401` unauthorized
+- `403` forbidden (foreign document)
+- `404` document/flashcard not found
+- `409` visual image is not required for this flashcard
+
+---
+
 ### `GET /documents/:id/quizzes`
 
 Purpose: return only quizzes for a document.
@@ -230,7 +267,7 @@ Error responses:
 
 ### `DELETE /documents/:id`
 
-Purpose: delete current user's document and related entities.
+Purpose: move current user's document to trash (soft-delete).
 
 Success:
 
@@ -238,10 +275,35 @@ Success:
 { "success": true }
 ```
 
-Behavior:
-- removes source object from S3-compatible storage
-- removes `Document` row from DB
-- related artifacts (`notes`, `flashcards`, `quizzes`) are deleted by cascade
+---
+
+### `GET /documents/trash`
+
+Purpose: return current user's trashed documents.
+
+---
+
+### `POST /documents/:id/restore`
+
+Purpose: restore document from trash.
+
+Success:
+
+```json
+{ "success": true }
+```
+
+---
+
+### `DELETE /documents/:id/forever`
+
+Purpose: permanently delete a trashed document and its storage object.
+
+Success:
+
+```json
+{ "success": true }
+```
 
 Error responses:
 - `401` unauthorized

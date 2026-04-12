@@ -1,0 +1,2 @@
+ALTER TABLE "User"
+ALTER COLUMN "nickname" TYPE VARCHAR(7);

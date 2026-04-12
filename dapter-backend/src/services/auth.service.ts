@@ -20,6 +20,7 @@ export interface IAuthService {
     code: string;
     state: string;
   }): Promise<{ user: AuthUserView; tokens: AuthTokens }>;
+  updateNickname(input: { userId: string; nickname: string }): Promise<AuthUserView>;
   verifyAccessToken(token: string): Promise<AuthUserView>;
 }
 
@@ -50,10 +51,12 @@ export class AuthService implements IAuthService {
       throw new Error("Email is already registered");
     }
 
+    const nickname = await this.generateUniqueNickname();
     const passwordHash = await bcrypt.hash(input.password, 12);
     const created = await this.repository.createUserWithPassword({
       email: input.email,
       passwordHash,
+      nickname,
     });
 
     const tokens = await this.issueTokens(created.id, created.email);
@@ -61,6 +64,7 @@ export class AuthService implements IAuthService {
       user: {
         id: created.id,
         email: created.email,
+        nickname: created.nickname,
       },
       tokens,
     };
@@ -85,6 +89,7 @@ export class AuthService implements IAuthService {
       user: {
         id: user.id,
         email: user.email,
+        nickname: user.nickname,
       },
       tokens,
     };
@@ -115,7 +120,7 @@ export class AuthService implements IAuthService {
 
     const rotated = await this.rotateTokens(session.id, user.id, user.email);
     return {
-      user: { id: user.id, email: user.email },
+      user: { id: user.id, email: user.email, nickname: user.nickname },
       tokens: rotated,
     };
   }
@@ -149,7 +154,31 @@ export class AuthService implements IAuthService {
     return {
       id: user.id,
       email: user.email,
+      nickname: user.nickname,
     };
+  }
+
+  public async updateNickname(input: { userId: string; nickname: string }): Promise<AuthUserView> {
+    const normalized = input.nickname.trim().toLowerCase();
+    if (!/^[a-z0-9]{1,7}$/.test(normalized)) {
+      throw new Error("Nickname must be 1-7 lowercase letters or numbers");
+    }
+
+    const existing = await this.repository.findUserById(input.userId);
+    if (!existing) {
+      throw new Error("Unauthorized");
+    }
+    if (existing.nickname === normalized) {
+      return { id: existing.id, email: existing.email, nickname: existing.nickname };
+    }
+
+    const isTaken = await this.repository.isNicknameTaken(normalized);
+    if (isTaken) {
+      throw new Error("Nickname is already taken");
+    }
+
+    const updated = await this.repository.updateUserNickname(input.userId, normalized);
+    return { id: updated.id, email: updated.email, nickname: updated.nickname };
   }
 
   public async getGoogleAuthUrl(): Promise<string> {
@@ -205,6 +234,7 @@ export class AuthService implements IAuthService {
     const user = await this.repository.upsertGoogleUser({
       email: userInfo.email.toLowerCase(),
       googleId: userInfo.sub,
+      nickname: await this.generateUniqueNickname(),
     });
 
     const authTokens = await this.issueTokens(user.id, user.email);
@@ -212,6 +242,7 @@ export class AuthService implements IAuthService {
       user: {
         id: user.id,
         email: user.email,
+        nickname: user.nickname,
       },
       tokens: authTokens,
     };
@@ -306,5 +337,20 @@ export class AuthService implements IAuthService {
 
   private hashToken(token: string): string {
     return createHash("sha256").update(token).digest("hex");
+  }
+
+  private async generateUniqueNickname(): Promise<string> {
+    const alphabet = "abcdefghijklmnopqrstuvwxyz";
+    for (let i = 0; i < 100; i += 1) {
+      let nickname = "";
+      for (let j = 0; j < 7; j += 1) {
+        nickname += alphabet[Math.floor(Math.random() * alphabet.length)];
+      }
+      const taken = await this.repository.isNicknameTaken(nickname);
+      if (!taken) {
+        return nickname;
+      }
+    }
+    throw new Error("Failed to generate nickname");
   }
 }

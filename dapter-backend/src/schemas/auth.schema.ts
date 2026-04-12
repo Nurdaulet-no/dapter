@@ -3,6 +3,7 @@ import { t } from "elysia";
 export const authUserSchema = t.Object({
   id: t.String(),
   email: t.String(),
+  nickname: t.String({ minLength: 1, maxLength: 7, pattern: "^[a-z0-9]+$" }),
 });
 
 export const authTokensSchema = t.Object({
@@ -12,7 +13,7 @@ export const authTokensSchema = t.Object({
 
 export const authSuccessSchema = t.Object({
   user: authUserSchema,
-  tokens: authTokensSchema,
+  authenticated: t.Boolean(),
 });
 
 export const registerBodySchema = t.Object({
@@ -25,16 +26,23 @@ export const loginBodySchema = t.Object({
   password: t.String({ minLength: 8, maxLength: 128 }),
 });
 
-export const refreshBodySchema = t.Object({
-  refreshToken: t.String({ minLength: 10 }),
-});
+export const refreshBodySchema = t.Optional(
+  t.Object({
+    refreshToken: t.Optional(t.String({ minLength: 10 })),
+  }),
+);
 
 export const googleCallbackQuerySchema = t.Object({
   code: t.String({ minLength: 10 }),
   state: t.String({ minLength: 10 }),
 });
 
-export const logoutBodySchema = t.Object({
-  refreshToken: t.String({ minLength: 10 }),
-});
+export const logoutBodySchema = t.Optional(
+  t.Object({
+    refreshToken: t.Optional(t.String({ minLength: 10 })),
+  }),
+);
 
+export const updateNicknameBodySchema = t.Object({
+  nickname: t.String({ minLength: 1, maxLength: 7, pattern: "^[a-zA-Z0-9]+$" }),
+});

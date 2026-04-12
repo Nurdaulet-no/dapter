@@ -1,0 +1,11 @@
+-- AlterTable
+ALTER TABLE "Flashcard"
+ADD COLUMN "topic" TEXT,
+ADD COLUMN "iconKey" TEXT,
+ADD COLUMN "visualNeedScore" DOUBLE PRECISION,
+ADD COLUMN "imagePrompt" TEXT,
+ADD COLUMN "imageStatus" TEXT,
+ADD COLUMN "imageUrl" TEXT,
+ADD COLUMN "requiresPointer" BOOLEAN,
+ADD COLUMN "pointerX" DOUBLE PRECISION,
+ADD COLUMN "pointerY" DOUBLE PRECISION;

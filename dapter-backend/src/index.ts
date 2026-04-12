@@ -8,6 +8,8 @@ import { logger } from "./config/logger";
 import { prisma } from "./config/prisma";
 import { createAuthController } from "./controllers/auth.controller";
 import { createDocumentController } from "./controllers/document.controller";
+import { startFlashcardImageQueueJob } from "./jobs/flashcard-image-queue.job";
+import { startTrashRetentionJob } from "./jobs/trash-retention.job";
 import { AuthRepository } from "./repositories/auth.repository";
 import { DocumentRepository } from "./repositories/document.repository";
 import { AIService } from "./services/ai.service";
@@ -32,8 +34,9 @@ const documentService = new DocumentService(
 const app = new Elysia()
   .use(
     cors({
-      origin: true,
-      methods: ["GET", "POST", "DELETE", "OPTIONS"],
+      origin: env.frontendBaseUrl,
+      methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+      credentials: true,
     }),
   )
   .use(
@@ -104,3 +107,21 @@ const app = new Elysia()
 app.listen(env.port);
 
 logger.info("server.started", { port: env.port });
+
+const stopTrashRetentionJob = startTrashRetentionJob(documentService, {
+  retentionDays: env.trashRetentionDays,
+  intervalMinutes: env.trashCleanupIntervalMinutes,
+  batchSize: env.trashCleanupBatchSize,
+});
+const stopFlashcardImageQueueJob = startFlashcardImageQueueJob(documentService, {
+  intervalSeconds: env.flashcardImageQueueIntervalSeconds,
+  batchSize: env.flashcardImageQueueBatchSize,
+});
+
+const shutdown = () => {
+  stopTrashRetentionJob();
+  stopFlashcardImageQueueJob();
+};
+
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);

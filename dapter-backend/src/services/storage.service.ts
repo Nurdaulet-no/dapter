@@ -80,12 +80,27 @@ export class StorageService implements IStorageService {
       fileKey,
       bucket: env.s3Bucket,
     });
-    await s3Client.send(
-      new DeleteObjectCommand({
-        Bucket: env.s3Bucket,
-        Key: fileKey,
-      }),
-    );
+    try {
+      await s3Client.send(
+        new DeleteObjectCommand({
+          Bucket: env.s3Bucket,
+          Key: fileKey,
+        }),
+      );
+    } catch (error) {
+      const code =
+        typeof error === "object" && error !== null && "name" in error
+          ? String(error.name)
+          : "";
+      if (code === "NoSuchKey" || code === "NotFound") {
+        logger.info("storage.delete.object_missing", {
+          fileKey,
+          bucket: env.s3Bucket,
+        });
+        return;
+      }
+      throw error;
+    }
     logger.info("storage.delete.completed", {
       fileKey,
       bucket: env.s3Bucket,

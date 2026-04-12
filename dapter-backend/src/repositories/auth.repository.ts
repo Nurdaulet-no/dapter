@@ -1,12 +1,18 @@
 import type { PrismaClient, Session, User } from "@prisma/client";
 
 export interface IAuthRepository {
-  createUserWithPassword(input: { email: string; passwordHash: string }): Promise<User>;
+  createUserWithPassword(input: {
+    email: string;
+    passwordHash: string;
+    nickname: string;
+  }): Promise<User>;
   findUserByEmail(email: string): Promise<User | null>;
   findUserById(id: string): Promise<User | null>;
   findUserByGoogleId(googleId: string): Promise<User | null>;
   findUserByEmailOrGoogleId(email: string, googleId: string): Promise<User | null>;
-  upsertGoogleUser(input: { email: string; googleId: string }): Promise<User>;
+  upsertGoogleUser(input: { email: string; googleId: string; nickname: string }): Promise<User>;
+  isNicknameTaken(nickname: string): Promise<boolean>;
+  updateUserNickname(userId: string, nickname: string): Promise<User>;
   createSession(input: {
     userId: string;
     refreshTokenHash: string;
@@ -24,10 +30,15 @@ export interface IAuthRepository {
 export class AuthRepository implements IAuthRepository {
   public constructor(private readonly prisma: PrismaClient) {}
 
-  public createUserWithPassword(input: { email: string; passwordHash: string }): Promise<User> {
+  public createUserWithPassword(input: {
+    email: string;
+    passwordHash: string;
+    nickname: string;
+  }): Promise<User> {
     return this.prisma.user.create({
       data: {
         email: input.email,
+        nickname: input.nickname,
         passwordHash: input.passwordHash,
       },
     });
@@ -53,12 +64,13 @@ export class AuthRepository implements IAuthRepository {
     });
   }
 
-  public async upsertGoogleUser(input: { email: string; googleId: string }): Promise<User> {
+  public async upsertGoogleUser(input: { email: string; googleId: string; nickname: string }): Promise<User> {
     const existing = await this.findUserByEmailOrGoogleId(input.email, input.googleId);
     if (!existing) {
       return this.prisma.user.create({
         data: {
           email: input.email,
+          nickname: input.nickname,
           googleId: input.googleId,
         },
       });
@@ -114,5 +126,19 @@ export class AuthRepository implements IAuthRepository {
       where: { id: sessionId },
     });
   }
-}
 
+  public async isNicknameTaken(nickname: string): Promise<boolean> {
+    const user = await this.prisma.user.findUnique({
+      where: { nickname },
+      select: { id: true },
+    });
+    return Boolean(user);
+  }
+
+  public updateUserNickname(userId: string, nickname: string): Promise<User> {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { nickname },
+    });
+  }
+}

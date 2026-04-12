@@ -30,8 +30,13 @@ Complete map of all added logging points:
 - Pipeline:
   - `pipeline.upload_and_queue.started`
   - `pipeline.process_document.started`
+  - `pipeline.stage.completed`
   - `pipeline.process_document.completed`
   - `pipeline.process_document.failed`
+  - `pipeline.flashcard_image.request.queued`
+  - `pipeline.flashcard_image.batch.started`
+  - `pipeline.flashcard_image.queue.completed`
+  - `pipeline.flashcard_image.process_failed`
 - AI failover:
   - `ai.failover.attempt.started`
   - `ai.failover.attempt.failed`

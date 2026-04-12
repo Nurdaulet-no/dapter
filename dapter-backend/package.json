@@ -9,7 +9,8 @@
     "typecheck": "bun x tsc --noEmit",
     "prisma:generate": "bun x prisma generate",
     "prisma:migrate:dev": "bun x prisma migrate dev",
-    "test:e2e": "bun run scripts/e2e-endpoints.ts"
+    "test:e2e": "bun run scripts/e2e-endpoints.ts",
+    "test:extract:selected-pages": "bun run scripts/test-selected-pages-extract.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

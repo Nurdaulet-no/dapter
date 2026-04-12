@@ -4,19 +4,60 @@ import { XMLParser } from "fast-xml-parser";
 import { logger } from "../config/logger";
 
 export interface IExtractionService {
-  extractText(input: { mimeType: string; bytes: Uint8Array }): Promise<string>;
+  extractText(input: { mimeType: string; bytes: Uint8Array; selectedPages?: number[] }): Promise<string>;
 }
 
 export class ExtractionService implements IExtractionService {
   private readonly xmlParser = new XMLParser({ ignoreAttributes: false });
 
-  public async extractText(input: { mimeType: string; bytes: Uint8Array }): Promise<string> {
+  public async extractText(input: { mimeType: string; bytes: Uint8Array; selectedPages?: number[] }): Promise<string> {
     logger.info("extraction.started", {
       mimeType: input.mimeType,
       byteLength: input.bytes.byteLength,
     });
     if (input.mimeType === "application/pdf") {
-      const parsed = await pdfParse(Buffer.from(input.bytes));
+      const pageTexts: string[] = [];
+      const parsed = await pdfParse(Buffer.from(input.bytes), {
+        pagerender: async (pageData: {
+          getTextContent: (options: {
+            normalizeWhitespace: boolean;
+            disableCombineTextItems: boolean;
+          }) => Promise<{ items: Array<{ str?: string; transform?: number[] }> }>;
+        }) => {
+          const textContent = await pageData.getTextContent({
+            normalizeWhitespace: false,
+            disableCombineTextItems: false,
+          });
+          let lastY: number | undefined;
+          let text = "";
+          for (const item of textContent.items) {
+            const value = typeof item.str === "string" ? item.str : "";
+            const y = Array.isArray(item.transform) ? item.transform[5] : undefined;
+            if (lastY === undefined || y === lastY) {
+              text += value;
+            } else {
+              text += `\n${value}`;
+            }
+            lastY = y;
+          }
+          const trimmed = text.trim();
+          pageTexts.push(trimmed);
+          return trimmed;
+        },
+      });
+      if (input.selectedPages && input.selectedPages.length > 0) {
+        const selectedText = input.selectedPages
+          .filter((page) => page >= 1 && page <= pageTexts.length)
+          .map((page) => pageTexts[page - 1] ?? "")
+          .join("\n\n")
+          .trim();
+        logger.info("extraction.pdf.selected_pages.completed", {
+          selectedPages: input.selectedPages.length,
+          pages: pageTexts.length,
+          textLength: selectedText.length,
+        });
+        return selectedText;
+      }
       logger.info("extraction.pdf.completed", {
         textLength: parsed.text.length,
         pages: parsed.numpages,
@@ -29,7 +70,7 @@ export class ExtractionService implements IExtractionService {
       "application/vnd.openxmlformats-officedocument.presentationml.presentation"
     ) {
       logger.debug("extraction.pptx.detected");
-      return this.extractPptxText(input.bytes);
+      return this.extractPptxText(input.bytes, input.selectedPages);
     }
 
     logger.error("extraction.unsupported_mime_type", {
@@ -38,7 +79,7 @@ export class ExtractionService implements IExtractionService {
     throw new Error(`Unsupported mime type for extraction: ${input.mimeType}`);
   }
 
-  private async extractPptxText(bytes: Uint8Array): Promise<string> {
+  private async extractPptxText(bytes: Uint8Array, selectedPages?: number[]): Promise<string> {
     const zip = await JSZip.loadAsync(bytes);
     const slideFiles = Object.keys(zip.files)
       .filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name))
@@ -49,7 +90,13 @@ export class ExtractionService implements IExtractionService {
       slides: slideFiles.length,
     });
 
+    const selectedSet = selectedPages && selectedPages.length > 0 ? new Set(selectedPages) : null;
     for (const fileName of slideFiles) {
+      const slideMatch = fileName.match(/slide(\d+)\.xml$/);
+      const slideIndex = slideMatch ? Number(slideMatch[1]) : null;
+      if (selectedSet && (slideIndex === null || !selectedSet.has(slideIndex))) {
+        continue;
+      }
       const xml = await zip.files[fileName]?.async("text");
       if (!xml) {
         logger.error("extraction.pptx.slide.read_failed", { fileName });
