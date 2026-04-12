@@ -11,7 +11,7 @@ bun run test:e2e
 ## Minimal Smoke Test
 
 1. `GET /health` -> `{"status":"ok"}`
-2. `POST /auth/register` / `POST /auth/login` -> JWT tokens
+2. Acquire PocketBase user token and call any protected `/documents/*` route with Bearer token
 3. `POST /documents/upload` -> `{ documentId, status: "PROCESSING" }`
 4. Polling:
    - `GET /documents/:id/status`
@@ -26,22 +26,22 @@ bun run test:e2e
   - invalid MIME
   - oversized file
 - `401` on `/documents/*`:
-  - missing/invalid Bearer token
+  - missing/invalid PocketBase Bearer token
 - `403` on document read/delete:
   - document belongs to another user
 - `FAILED` after upload:
-  - S3 credentials/endpoint issues
+  - PocketBase file storage/read issue
   - extraction failure
-  - AI provider/key/model failure
-  - DB or migration issue
+  - OpenAI key/model/timeout failure
+  - PocketBase collection schema mismatch
 - long `PROCESSING`:
-  - external API latency
-  - AI provider instability
+  - OpenAI latency
+  - stuck stage (check stage-specific status/error fields)
 
 ## Recommended Debug Order
 
 1. Backend logs
-2. Auth config (`JWT_*`, OAuth env vars)
-3. S3 availability
-4. PostgreSQL availability and migration history
-5. AI keys + models + failover order
+2. Incoming Bearer token validity in PocketBase
+3. PocketBase availability + collection mappings
+4. OpenAI key/model + timeout config
+5. Stage status fields in `/documents/:id/status`

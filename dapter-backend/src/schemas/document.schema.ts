@@ -1,6 +1,46 @@
 import { t } from "elysia";
 import { z } from "zod";
 
+const documentStatusSchema = t.Union([t.Literal("PROCESSING"), t.Literal("COMPLETED"), t.Literal("FAILED")]);
+const artifactStageStatusSchema = t.Union([
+  t.Literal("PENDING"),
+  t.Literal("PROCESSING"),
+  t.Literal("COMPLETED"),
+  t.Literal("FAILED"),
+]);
+
+const flashcardResponseSchema = t.Object({
+  id: t.String(),
+  front: t.String(),
+  back: t.String(),
+  imageUrls: t.Optional(t.Array(t.String())),
+  tags: t.Optional(t.Array(t.String())),
+});
+
+const flashcardDeckResponseSchema = t.Object({
+  id: t.String(),
+  title: t.String(),
+  description: t.Optional(t.String()),
+  cards: t.Array(flashcardResponseSchema),
+});
+
+const quizQuestionResponseSchema = t.Object({
+  id: t.String(),
+  question: t.String(),
+  options: t.Array(t.String()),
+  correctIndex: t.Number(),
+  explanation: t.Optional(t.String()),
+  tags: t.Optional(t.Array(t.String())),
+  imageUrls: t.Optional(t.Array(t.String())),
+});
+
+const quizResponseSchema = t.Object({
+  id: t.String(),
+  title: t.String(),
+  description: t.Optional(t.String()),
+  questions: t.Array(quizQuestionResponseSchema),
+});
+
 export const uploadDocumentResponseSchema = t.Object({
   documentId: t.String(),
   status: t.Literal("PROCESSING"),
@@ -12,63 +52,28 @@ export const documentListResponseSchema = t.Array(
     fileName: t.String(),
     mimeType: t.String(),
     fileSize: t.Number(),
-    status: t.Union([t.Literal("PROCESSING"), t.Literal("COMPLETED"), t.Literal("FAILED")]),
+    status: documentStatusSchema,
     deletedAt: t.Optional(t.String()),
     createdAt: t.String(),
     updatedAt: t.String(),
   }),
 );
 
-export const documentStatusResponseSchema = t.Object({
+const stageEnvelopeSchema = {
   documentId: t.String(),
-  status: t.Union([t.Literal("PROCESSING"), t.Literal("COMPLETED"), t.Literal("FAILED")]),
+  status: documentStatusSchema,
   error: t.Optional(t.String()),
-  notebookStatus: t.Union([
-    t.Literal("PENDING"),
-    t.Literal("PROCESSING"),
-    t.Literal("COMPLETED"),
-    t.Literal("FAILED"),
-  ]),
+  notebookStatus: artifactStageStatusSchema,
   notebookError: t.Optional(t.String()),
-  flashcardsStatus: t.Union([
-    t.Literal("PENDING"),
-    t.Literal("PROCESSING"),
-    t.Literal("COMPLETED"),
-    t.Literal("FAILED"),
-  ]),
+  flashcardsStatus: artifactStageStatusSchema,
   flashcardsError: t.Optional(t.String()),
-  flashcardsEnrichmentStatus: t.Union([
-    t.Literal("PENDING"),
-    t.Literal("PROCESSING"),
-    t.Literal("COMPLETED"),
-    t.Literal("FAILED"),
-  ]),
-  flashcardsEnrichmentError: t.Optional(t.String()),
-  quizzesStatus: t.Union([
-    t.Literal("PENDING"),
-    t.Literal("PROCESSING"),
-    t.Literal("COMPLETED"),
-    t.Literal("FAILED"),
-  ]),
+  quizzesStatus: artifactStageStatusSchema,
   quizzesError: t.Optional(t.String()),
-  flashcards: t.Optional(
-    t.Array(
-      t.Object({
-        id: t.String(),
-        question: t.String(),
-        answer: t.String(),
-        topic: t.Optional(t.String()),
-        iconKey: t.Optional(t.String()),
-        visualNeedScore: t.Optional(t.Number()),
-        imagePrompt: t.Optional(t.String()),
-        imageStatus: t.Optional(t.String()),
-        imageUrl: t.Optional(t.String()),
-        requiresPointer: t.Optional(t.Boolean()),
-        pointerX: t.Optional(t.Number()),
-        pointerY: t.Optional(t.Number()),
-      }),
-    ),
-  ),
+};
+
+export const documentStatusResponseSchema = t.Object({
+  ...stageEnvelopeSchema,
+  flashcardDecks: t.Optional(t.Array(flashcardDeckResponseSchema)),
   notes: t.Optional(
     t.Array(
       t.Object({
@@ -78,148 +83,21 @@ export const documentStatusResponseSchema = t.Object({
       }),
     ),
   ),
-  quizzes: t.Optional(
-    t.Array(
-      t.Object({
-        id: t.String(),
-        question: t.String(),
-        options: t.Array(t.String()),
-        correctOption: t.Number(),
-        explanation: t.Optional(t.String()),
-      }),
-    ),
-  ),
+  quizzes: t.Optional(t.Array(quizResponseSchema)),
 });
 
 export const documentFlashcardsResponseSchema = t.Object({
-  documentId: t.String(),
-  status: t.Union([t.Literal("PROCESSING"), t.Literal("COMPLETED"), t.Literal("FAILED")]),
-  error: t.Optional(t.String()),
-  notebookStatus: t.Union([
-    t.Literal("PENDING"),
-    t.Literal("PROCESSING"),
-    t.Literal("COMPLETED"),
-    t.Literal("FAILED"),
-  ]),
-  notebookError: t.Optional(t.String()),
-  flashcardsStatus: t.Union([
-    t.Literal("PENDING"),
-    t.Literal("PROCESSING"),
-    t.Literal("COMPLETED"),
-    t.Literal("FAILED"),
-  ]),
-  flashcardsError: t.Optional(t.String()),
-  flashcardsEnrichmentStatus: t.Union([
-    t.Literal("PENDING"),
-    t.Literal("PROCESSING"),
-    t.Literal("COMPLETED"),
-    t.Literal("FAILED"),
-  ]),
-  flashcardsEnrichmentError: t.Optional(t.String()),
-  quizzesStatus: t.Union([
-    t.Literal("PENDING"),
-    t.Literal("PROCESSING"),
-    t.Literal("COMPLETED"),
-    t.Literal("FAILED"),
-  ]),
-  quizzesError: t.Optional(t.String()),
-  flashcards: t.Optional(
-    t.Array(
-      t.Object({
-        id: t.String(),
-        question: t.String(),
-        answer: t.String(),
-        topic: t.Optional(t.String()),
-        iconKey: t.Optional(t.String()),
-        visualNeedScore: t.Optional(t.Number()),
-        imagePrompt: t.Optional(t.String()),
-        imageStatus: t.Optional(t.String()),
-        imageUrl: t.Optional(t.String()),
-        requiresPointer: t.Optional(t.Boolean()),
-        pointerX: t.Optional(t.Number()),
-        pointerY: t.Optional(t.Number()),
-      }),
-    ),
-  ),
+  ...stageEnvelopeSchema,
+  flashcardDecks: t.Optional(t.Array(flashcardDeckResponseSchema)),
 });
 
 export const documentQuizzesResponseSchema = t.Object({
-  documentId: t.String(),
-  status: t.Union([t.Literal("PROCESSING"), t.Literal("COMPLETED"), t.Literal("FAILED")]),
-  error: t.Optional(t.String()),
-  notebookStatus: t.Union([
-    t.Literal("PENDING"),
-    t.Literal("PROCESSING"),
-    t.Literal("COMPLETED"),
-    t.Literal("FAILED"),
-  ]),
-  notebookError: t.Optional(t.String()),
-  flashcardsStatus: t.Union([
-    t.Literal("PENDING"),
-    t.Literal("PROCESSING"),
-    t.Literal("COMPLETED"),
-    t.Literal("FAILED"),
-  ]),
-  flashcardsError: t.Optional(t.String()),
-  flashcardsEnrichmentStatus: t.Union([
-    t.Literal("PENDING"),
-    t.Literal("PROCESSING"),
-    t.Literal("COMPLETED"),
-    t.Literal("FAILED"),
-  ]),
-  flashcardsEnrichmentError: t.Optional(t.String()),
-  quizzesStatus: t.Union([
-    t.Literal("PENDING"),
-    t.Literal("PROCESSING"),
-    t.Literal("COMPLETED"),
-    t.Literal("FAILED"),
-  ]),
-  quizzesError: t.Optional(t.String()),
-  quizzes: t.Optional(
-    t.Array(
-      t.Object({
-        id: t.String(),
-        question: t.String(),
-        options: t.Array(t.String()),
-        correctOption: t.Number(),
-        explanation: t.Optional(t.String()),
-      }),
-    ),
-  ),
+  ...stageEnvelopeSchema,
+  quizzes: t.Optional(t.Array(quizResponseSchema)),
 });
 
 export const documentNotesResponseSchema = t.Object({
-  documentId: t.String(),
-  status: t.Union([t.Literal("PROCESSING"), t.Literal("COMPLETED"), t.Literal("FAILED")]),
-  error: t.Optional(t.String()),
-  notebookStatus: t.Union([
-    t.Literal("PENDING"),
-    t.Literal("PROCESSING"),
-    t.Literal("COMPLETED"),
-    t.Literal("FAILED"),
-  ]),
-  notebookError: t.Optional(t.String()),
-  flashcardsStatus: t.Union([
-    t.Literal("PENDING"),
-    t.Literal("PROCESSING"),
-    t.Literal("COMPLETED"),
-    t.Literal("FAILED"),
-  ]),
-  flashcardsError: t.Optional(t.String()),
-  flashcardsEnrichmentStatus: t.Union([
-    t.Literal("PENDING"),
-    t.Literal("PROCESSING"),
-    t.Literal("COMPLETED"),
-    t.Literal("FAILED"),
-  ]),
-  flashcardsEnrichmentError: t.Optional(t.String()),
-  quizzesStatus: t.Union([
-    t.Literal("PENDING"),
-    t.Literal("PROCESSING"),
-    t.Literal("COMPLETED"),
-    t.Literal("FAILED"),
-  ]),
-  quizzesError: t.Optional(t.String()),
+  ...stageEnvelopeSchema,
   notes: t.Optional(
     t.Array(
       t.Object({
@@ -231,60 +109,19 @@ export const documentNotesResponseSchema = t.Object({
   ),
 });
 
-export const flashcardImageRequestResponseSchema = t.Object({
-  documentId: t.String(),
-  flashcard: t.Object({
-    id: t.String(),
-    imageStatus: t.Optional(t.String()),
-    imageUrl: t.Optional(t.String()),
-    imagePrompt: t.Optional(t.String()),
-    visualNeedScore: t.Optional(t.Number()),
-  }),
-});
-
 export const flashcardSchema = z.object({
-  question: z.string().min(3),
-  answer: z.string().min(1),
-  topic: z.string().min(2).max(64).optional(),
-  iconKey: z.string().min(2).max(64).optional(),
-  visualNeedScore: z.number().min(0).max(1).optional(),
-  imagePrompt: z.string().min(3).max(500).optional(),
-  requiresPointer: z.boolean().optional(),
-  pointerX: z.number().min(0).max(100).optional(),
-  pointerY: z.number().min(0).max(100).optional(),
+  id: z.string(),
+  front: z.string().min(1),
+  back: z.string().min(1),
+  imageUrls: z.array(z.string().url()).optional(),
+  tags: z.array(z.string()).optional(),
 });
 
-export const flashcardCoreSchema = z.object({
-  question: z.string().min(3),
-  answer: z.string().min(1),
-});
-
-export const flashcardIconKeySchema = z.enum([
-  "book-open",
-  "brain",
-  "code",
-  "landmark",
-  "mountain",
-  "users",
-  "credit-card",
-  "shield-check",
-  "chart-bar",
-  "database",
-  "target",
-  "workflow",
-  "qrcode",
-  "calendar-clock",
-]);
-
-export const flashcardEnrichmentSchema = z.object({
-  index: z.number().int().min(0),
-  topic: z.string().min(2).max(64).optional(),
-  iconKey: flashcardIconKeySchema.optional(),
-  visualNeedScore: z.number().min(0).max(1).optional(),
-  imagePrompt: z.string().min(3).max(500).optional(),
-  requiresPointer: z.boolean().optional(),
-  pointerX: z.number().min(0).max(100).optional(),
-  pointerY: z.number().min(0).max(100).optional(),
+export const flashcardDeckSchema = z.object({
+  id: z.string(),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  cards: z.array(flashcardSchema).min(1),
 });
 
 export const noteSchema = z.object({
@@ -292,17 +129,27 @@ export const noteSchema = z.object({
   content: z.string().min(1),
 });
 
-export const quizSchema = z.object({
-  question: z.string().min(3),
-  options: z.array(z.string().min(1)).min(2).max(6),
-  correctOption: z.number().int().min(0),
+export const quizQuestionSchema = z.object({
+  id: z.string(),
+  question: z.string().min(1),
+  options: z.array(z.string()).min(2),
+  correctIndex: z.number().int().min(0),
   explanation: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  imageUrls: z.array(z.string().url()).optional(),
+});
+
+export const quizSchema = z.object({
+  id: z.string(),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  questions: z.array(quizQuestionSchema).min(1),
 });
 
 export const llmPayloadSchema = z.object({
   notes: z.array(noteSchema).min(1),
-  flashcards: z.array(flashcardSchema).min(3),
-  quizzes: z.array(quizSchema).min(3),
+  flashcardDecks: z.array(flashcardDeckSchema).min(1),
+  quizzes: z.array(quizSchema).min(1),
 });
 
 export type LlmPayload = z.infer<typeof llmPayloadSchema>;
@@ -311,24 +158,48 @@ export const notesOnlyPayloadSchema = z.object({
   notes: z.array(noteSchema).min(1),
 });
 
-export const flashcardsOnlyPayloadSchema = z.object({
-  flashcards: z.array(flashcardSchema).min(3),
-});
-
-export const flashcardsCorePayloadSchema = z.object({
-  flashcards: z.array(flashcardCoreSchema).min(3),
-});
-
-export const flashcardsEnrichmentPayloadSchema = z.object({
-  enrichment: z.array(flashcardEnrichmentSchema),
+export const flashcardDecksPayloadSchema = z.object({
+  flashcardDecks: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string().min(1),
+      description: z.string().optional(),
+      cards: z.array(
+        z.object({
+          id: z.string(),
+          front: z.string().min(1),
+          back: z.string().min(1),
+          imagePrompt: z.string().min(1),
+          imageUrls: z.array(z.string().url()).optional(),
+          tags: z.array(z.string()).optional(),
+        }),
+      ).min(1),
+    }),
+  ).min(1),
 });
 
 export const quizzesOnlyPayloadSchema = z.object({
-  quizzes: z.array(quizSchema).min(3),
+  quizzes: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string().min(1),
+      description: z.string().optional(),
+      questions: z.array(
+        z.object({
+          id: z.string(),
+          question: z.string().min(1),
+          options: z.array(z.string()).min(2),
+          correctIndex: z.number().int().min(0),
+          explanation: z.string().optional(),
+          tags: z.array(z.string()).optional(),
+          imagePrompt: z.string().min(1),
+          imageUrls: z.array(z.string().url()).optional(),
+        }),
+      ).min(1),
+    }),
+  ).min(1),
 });
 
 export type NotesOnlyPayload = z.infer<typeof notesOnlyPayloadSchema>;
-export type FlashcardsOnlyPayload = z.infer<typeof flashcardsOnlyPayloadSchema>;
-export type FlashcardsCorePayload = z.infer<typeof flashcardsCorePayloadSchema>;
-export type FlashcardsEnrichmentPayload = z.infer<typeof flashcardsEnrichmentPayloadSchema>;
+export type FlashcardDecksPayload = z.infer<typeof flashcardDecksPayloadSchema>;
 export type QuizzesOnlyPayload = z.infer<typeof quizzesOnlyPayloadSchema>;

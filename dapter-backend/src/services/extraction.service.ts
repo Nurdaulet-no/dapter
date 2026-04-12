@@ -4,13 +4,13 @@ import { XMLParser } from "fast-xml-parser";
 import { logger } from "../config/logger";
 
 export interface IExtractionService {
-  extractText(input: { mimeType: string; bytes: Uint8Array; selectedPages?: number[] }): Promise<string>;
+  extractText(input: { mimeType: string; bytes: Uint8Array }): Promise<string>;
 }
 
 export class ExtractionService implements IExtractionService {
   private readonly xmlParser = new XMLParser({ ignoreAttributes: false });
 
-  public async extractText(input: { mimeType: string; bytes: Uint8Array; selectedPages?: number[] }): Promise<string> {
+  public async extractText(input: { mimeType: string; bytes: Uint8Array }): Promise<string> {
     logger.info("extraction.started", {
       mimeType: input.mimeType,
       byteLength: input.bytes.byteLength,
@@ -45,19 +45,6 @@ export class ExtractionService implements IExtractionService {
           return trimmed;
         },
       });
-      if (input.selectedPages && input.selectedPages.length > 0) {
-        const selectedText = input.selectedPages
-          .filter((page) => page >= 1 && page <= pageTexts.length)
-          .map((page) => pageTexts[page - 1] ?? "")
-          .join("\n\n")
-          .trim();
-        logger.info("extraction.pdf.selected_pages.completed", {
-          selectedPages: input.selectedPages.length,
-          pages: pageTexts.length,
-          textLength: selectedText.length,
-        });
-        return selectedText;
-      }
       logger.info("extraction.pdf.completed", {
         textLength: parsed.text.length,
         pages: parsed.numpages,
@@ -70,7 +57,7 @@ export class ExtractionService implements IExtractionService {
       "application/vnd.openxmlformats-officedocument.presentationml.presentation"
     ) {
       logger.debug("extraction.pptx.detected");
-      return this.extractPptxText(input.bytes, input.selectedPages);
+      return this.extractPptxText(input.bytes);
     }
 
     logger.error("extraction.unsupported_mime_type", {
@@ -79,7 +66,7 @@ export class ExtractionService implements IExtractionService {
     throw new Error(`Unsupported mime type for extraction: ${input.mimeType}`);
   }
 
-  private async extractPptxText(bytes: Uint8Array, selectedPages?: number[]): Promise<string> {
+  private async extractPptxText(bytes: Uint8Array): Promise<string> {
     const zip = await JSZip.loadAsync(bytes);
     const slideFiles = Object.keys(zip.files)
       .filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name))
@@ -90,13 +77,7 @@ export class ExtractionService implements IExtractionService {
       slides: slideFiles.length,
     });
 
-    const selectedSet = selectedPages && selectedPages.length > 0 ? new Set(selectedPages) : null;
     for (const fileName of slideFiles) {
-      const slideMatch = fileName.match(/slide(\d+)\.xml$/);
-      const slideIndex = slideMatch ? Number(slideMatch[1]) : null;
-      if (selectedSet && (slideIndex === null || !selectedSet.has(slideIndex))) {
-        continue;
-      }
       const xml = await zip.files[fileName]?.async("text");
       if (!xml) {
         logger.error("extraction.pptx.slide.read_failed", { fileName });

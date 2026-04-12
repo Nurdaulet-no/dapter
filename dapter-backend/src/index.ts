@@ -5,25 +5,17 @@ import { Elysia } from "elysia";
 import { env } from "./config/env";
 import { AppError } from "./errors/app-error";
 import { logger } from "./config/logger";
-import { prisma } from "./config/prisma";
-import { createAuthController } from "./controllers/auth.controller";
 import { createDocumentController } from "./controllers/document.controller";
-import { startFlashcardImageQueueJob } from "./jobs/flashcard-image-queue.job";
-import { startTrashRetentionJob } from "./jobs/trash-retention.job";
-import { AuthRepository } from "./repositories/auth.repository";
-import { DocumentRepository } from "./repositories/document.repository";
+import { PocketBaseDocumentRepository } from "./repositories/pocketbase-document.repository";
 import { AIService } from "./services/ai.service";
-import { AuthService } from "./services/auth.service";
 import { DocumentService } from "./services/document.service";
 import { ExtractionService } from "./services/extraction.service";
 import { StorageService } from "./services/storage.service";
 
-const authRepository = new AuthRepository(prisma);
-const documentRepository = new DocumentRepository(prisma);
+const documentRepository = new PocketBaseDocumentRepository();
 const storageService = new StorageService();
 const extractionService = new ExtractionService();
 const aiService = new AIService();
-const authService = new AuthService(authRepository);
 const documentService = new DocumentService(
   documentRepository,
   storageService,
@@ -71,8 +63,7 @@ const app = new Elysia()
     });
   })
   .get("/health", () => ({ status: "ok" }))
-  .use(createAuthController(authService))
-  .use(createDocumentController(documentService, authService))
+  .use(createDocumentController(documentService))
   .onError(({ code, error, set }) => {
     logger.error("http.request.failed", {
       code,
@@ -107,21 +98,3 @@ const app = new Elysia()
 app.listen(env.port);
 
 logger.info("server.started", { port: env.port });
-
-const stopTrashRetentionJob = startTrashRetentionJob(documentService, {
-  retentionDays: env.trashRetentionDays,
-  intervalMinutes: env.trashCleanupIntervalMinutes,
-  batchSize: env.trashCleanupBatchSize,
-});
-const stopFlashcardImageQueueJob = startFlashcardImageQueueJob(documentService, {
-  intervalSeconds: env.flashcardImageQueueIntervalSeconds,
-  batchSize: env.flashcardImageQueueBatchSize,
-});
-
-const shutdown = () => {
-  stopTrashRetentionJob();
-  stopFlashcardImageQueueJob();
-};
-
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);

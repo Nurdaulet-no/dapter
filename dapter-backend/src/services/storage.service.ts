@@ -1,8 +1,6 @@
-import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { randomUUID } from "node:crypto";
-import { env } from "../config/env";
+import { pocketbase } from "../config/pocketbase";
 import { logger } from "../config/logger";
-import { s3Client } from "../config/s3";
 
 export interface IStorageService {
   upload(input: {
@@ -20,54 +18,57 @@ export class StorageService implements IStorageService {
     mimeType: string;
     body: Uint8Array;
   }): Promise<{ fileKey: string; fileUrl: string }> {
-    const key = `${randomUUID()}-${input.fileName.replace(/\s+/g, "-")}`;
+    const safeFileName = input.fileName.replace(/\s+/g, "-");
+    const file = new File([input.body], `${randomUUID()}-${safeFileName}`, {
+      type: input.mimeType,
+    });
     logger.info("storage.upload.started", {
-      fileKey: key,
       fileName: input.fileName,
       mimeType: input.mimeType,
       size: input.body.byteLength,
-      bucket: env.s3Bucket,
     });
-    await s3Client.send(
-      new PutObjectCommand({
-        Bucket: env.s3Bucket,
-        Key: key,
-        Body: input.body,
-        ContentType: input.mimeType,
-      }),
-    );
-    const fileUrl = env.s3Endpoint
-      ? `${env.s3Endpoint}/${env.s3Bucket}/${key}`
-      : `https://${env.s3Bucket}.s3.${env.s3Region}.amazonaws.com/${key}`;
+    const created = await pocketbase.collection("storage_files").create({
+      file,
+      fileName: input.fileName,
+      mimeType: input.mimeType,
+      size: input.body.byteLength,
+    }) as {
+      id: string;
+      file?: string;
+    };
+    if (!created.file) {
+      throw new Error("PocketBase storage record missing file field");
+    }
+    const fileUrl = pocketbase.files.getURL(created, created.file);
     logger.info("storage.upload.completed", {
-      fileKey: key,
+      fileKey: created.id,
       fileUrl,
-      bucket: env.s3Bucket,
     });
 
-    return { fileKey: key, fileUrl };
+    return { fileKey: created.id, fileUrl };
   }
 
   public async download(fileKey: string): Promise<Uint8Array> {
     logger.info("storage.download.started", {
       fileKey,
-      bucket: env.s3Bucket,
     });
-    const result = await s3Client.send(
-      new GetObjectCommand({
-        Bucket: env.s3Bucket,
-        Key: fileKey,
-      }),
-    );
-    if (!result.Body) {
+    const record = await pocketbase.collection("storage_files").getOne(fileKey) as {
+      id: string;
+      file?: string;
+    };
+    if (!record.file) {
       logger.error("storage.download.failed", {
         fileKey,
-        reason: "empty_body",
+        reason: "missing_file_field",
       });
-      throw new Error("S3 object body is empty");
+      throw new Error("PocketBase storage file is missing");
     }
-
-    const bytes = await result.Body.transformToByteArray();
+    const fileUrl = pocketbase.files.getURL(record, record.file);
+    const response = await fetch(fileUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to download storage file. status=${response.status}`);
+    }
+    const bytes = new Uint8Array(await response.arrayBuffer());
     logger.info("storage.download.completed", {
       fileKey,
       byteLength: bytes.byteLength,
@@ -78,24 +79,17 @@ export class StorageService implements IStorageService {
   public async delete(fileKey: string): Promise<void> {
     logger.info("storage.delete.started", {
       fileKey,
-      bucket: env.s3Bucket,
     });
     try {
-      await s3Client.send(
-        new DeleteObjectCommand({
-          Bucket: env.s3Bucket,
-          Key: fileKey,
-        }),
-      );
+      await pocketbase.collection("storage_files").delete(fileKey);
     } catch (error) {
-      const code =
-        typeof error === "object" && error !== null && "name" in error
-          ? String(error.name)
-          : "";
-      if (code === "NoSuchKey" || code === "NotFound") {
+      const status =
+        typeof error === "object" && error !== null && "status" in error
+          ? Number(error.status)
+          : 0;
+      if (status === 404) {
         logger.info("storage.delete.object_missing", {
           fileKey,
-          bucket: env.s3Bucket,
         });
         return;
       }
@@ -103,7 +97,6 @@ export class StorageService implements IStorageService {
     }
     logger.info("storage.delete.completed", {
       fileKey,
-      bucket: env.s3Bucket,
     });
   }
 }

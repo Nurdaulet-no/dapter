@@ -26,7 +26,6 @@ Complete map of all added logging points:
   - `auth.login.failed`
   - `auth.refresh.failed`
   - `auth.logout.failed`
-  - `auth.google.callback.failed`
 - Pipeline:
   - `pipeline.upload_and_queue.started`
   - `pipeline.process_document.started`
@@ -34,16 +33,17 @@ Complete map of all added logging points:
   - `pipeline.process_document.completed`
   - `pipeline.process_document.failed`
   - `pipeline.flashcard_image.request.queued`
-  - `pipeline.flashcard_image.batch.started`
   - `pipeline.flashcard_image.queue.completed`
   - `pipeline.flashcard_image.process_failed`
-- AI failover:
-  - `ai.failover.attempt.started`
-  - `ai.failover.attempt.failed`
-  - `ai.failover.attempt.completed`
+- AI runtime:
+  - `ai.generation.started`
+  - `ai.generation.failed`
+  - `ai.openai.attempt.started`
+  - `ai.openai.attempt.failed`
+  - `ai.openai.attempt.completed`
 - Background jobs:
-  - `documents.trash.cleanup.started`
   - `documents.trash.cleanup.completed`
+  - `documents.trash.cleanup.item_failed`
   - `documents.trash.cleanup.run_failed`
   - `pipeline.flashcard_image.queue.completed`
   - `pipeline.flashcard_image.queue.run_failed`

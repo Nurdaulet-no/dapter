@@ -1,6 +1,5 @@
-import type { DocumentStatus, DocumentType } from "@prisma/client";
+import type { PocketBaseDocumentStatus, PocketBaseDocumentType } from "./pocketbase";
 
-export type FlashcardImageStatus = "not_requested" | "queued" | "processing" | "ready" | "failed";
 export type ArtifactStageStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
 
 export interface DocumentRegistrationInput {
@@ -10,68 +9,77 @@ export interface DocumentRegistrationInput {
   fileSize: number;
   fileKey: string;
   fileUrl: string;
-  selectedStartPage?: number;
-  selectedEndPage?: number;
-  selectedPages?: number[];
-  type: DocumentType;
+  type: PocketBaseDocumentType;
 }
 
 export interface LearningArtifactInput {
   notes: Array<{ title: string; content: string }>;
-  flashcards: Array<{
-    question: string;
-    answer: string;
-    topic?: string;
-    iconKey?: string;
-    visualNeedScore?: number;
-    imagePrompt?: string;
-    imageStatus?: FlashcardImageStatus;
-    imageUrl?: string;
-    requiresPointer?: boolean;
-    pointerX?: number;
-    pointerY?: number;
+  flashcardDecks: Array<{
+    id: string;
+    title: string;
+    description?: string;
+    cards: Array<{
+      id: string;
+      front: string;
+      back: string;
+      imagePrompt: string;
+      imageUrls?: string[];
+      tags?: string[];
+    }>;
   }>;
   quizzes: Array<{
-    question: string;
-    options: string[];
-    correctOption: number;
-    explanation?: string;
+    id: string;
+    title: string;
+    description?: string;
+    questions: Array<{
+      id: string;
+      question: string;
+      options: string[];
+      correctIndex: number;
+      explanation?: string;
+      tags?: string[];
+      imagePrompt: string;
+      imageUrls?: string[];
+    }>;
   }>;
 }
 
 export interface DocumentStatusView {
   documentId: string;
-  status: DocumentStatus;
+  status: PocketBaseDocumentStatus;
   error?: string;
   notebookStatus: ArtifactStageStatus;
   notebookError?: string;
   flashcardsStatus: ArtifactStageStatus;
   flashcardsError?: string;
-  flashcardsEnrichmentStatus: ArtifactStageStatus;
-  flashcardsEnrichmentError?: string;
   quizzesStatus: ArtifactStageStatus;
   quizzesError?: string;
   notes?: Array<{ id: string; title: string; content: string }>;
-  flashcards?: Array<{
+  flashcardDecks?: Array<{
     id: string;
-    question: string;
-    answer: string;
-    topic?: string;
-    iconKey?: string;
-    visualNeedScore?: number;
-    imagePrompt?: string;
-    imageStatus?: FlashcardImageStatus;
-    imageUrl?: string;
-    requiresPointer?: boolean;
-    pointerX?: number;
-    pointerY?: number;
+    title: string;
+    description?: string;
+    cards: Array<{
+      id: string;
+      front: string;
+      back: string;
+      imageUrls?: string[];
+      tags?: string[];
+    }>;
   }>;
   quizzes?: Array<{
     id: string;
-    question: string;
-    options: string[];
-    correctOption: number;
-    explanation?: string;
+    title: string;
+    description?: string;
+    questions: Array<{
+      id: string;
+      question: string;
+      options: string[];
+      correctIndex: number;
+      explanation?: string;
+      tags?: string[];
+      imageUrls?: string[];
+    }>;
   }>;
 }
 
@@ -80,7 +88,7 @@ export interface DocumentListItemView {
   fileName: string;
   mimeType: string;
   fileSize: number;
-  status: DocumentStatus;
+  status: PocketBaseDocumentStatus;
   deletedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -88,75 +96,63 @@ export interface DocumentListItemView {
 
 export interface DocumentFlashcardsView {
   documentId: string;
-  status: DocumentStatus;
+  status: PocketBaseDocumentStatus;
   error?: string;
   notebookStatus: ArtifactStageStatus;
   notebookError?: string;
   flashcardsStatus: ArtifactStageStatus;
   flashcardsError?: string;
-  flashcardsEnrichmentStatus: ArtifactStageStatus;
-  flashcardsEnrichmentError?: string;
   quizzesStatus: ArtifactStageStatus;
   quizzesError?: string;
-  flashcards?: Array<{
+  flashcardDecks?: Array<{
     id: string;
-    question: string;
-    answer: string;
-    topic?: string;
-    iconKey?: string;
-    visualNeedScore?: number;
-    imagePrompt?: string;
-    imageStatus?: FlashcardImageStatus;
-    imageUrl?: string;
-    requiresPointer?: boolean;
-    pointerX?: number;
-    pointerY?: number;
+    title: string;
+    description?: string;
+    cards: Array<{
+      id: string;
+      front: string;
+      back: string;
+      imageUrls?: string[];
+      tags?: string[];
+    }>;
   }>;
 }
 
 export interface DocumentQuizzesView {
   documentId: string;
-  status: DocumentStatus;
+  status: PocketBaseDocumentStatus;
   error?: string;
   notebookStatus: ArtifactStageStatus;
   notebookError?: string;
   flashcardsStatus: ArtifactStageStatus;
   flashcardsError?: string;
-  flashcardsEnrichmentStatus: ArtifactStageStatus;
-  flashcardsEnrichmentError?: string;
   quizzesStatus: ArtifactStageStatus;
   quizzesError?: string;
   quizzes?: Array<{
     id: string;
-    question: string;
-    options: string[];
-    correctOption: number;
-    explanation?: string;
+    title: string;
+    description?: string;
+    questions: Array<{
+      id: string;
+      question: string;
+      options: string[];
+      correctIndex: number;
+      explanation?: string;
+      tags?: string[];
+      imageUrls?: string[];
+    }>;
   }>;
 }
 
 export interface DocumentNotesView {
   documentId: string;
-  status: DocumentStatus;
+  status: PocketBaseDocumentStatus;
   error?: string;
   notebookStatus: ArtifactStageStatus;
   notebookError?: string;
   flashcardsStatus: ArtifactStageStatus;
   flashcardsError?: string;
-  flashcardsEnrichmentStatus: ArtifactStageStatus;
-  flashcardsEnrichmentError?: string;
   quizzesStatus: ArtifactStageStatus;
   quizzesError?: string;
   notes?: Array<{ id: string; title: string; content: string }>;
-}
-
-export interface FlashcardImageRequestResult {
-  documentId: string;
-  flashcard: {
-    id: string;
-    imageStatus?: FlashcardImageStatus;
-    imageUrl?: string;
-    imagePrompt?: string;
-    visualNeedScore?: number;
-  };
 }

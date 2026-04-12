@@ -1,8 +1,8 @@
 import { Elysia, t } from "elysia";
+import PocketBase from "pocketbase";
 import { env } from "../config/env";
 import { logger } from "../config/logger";
 import { AppError } from "../errors/app-error";
-import type { IAuthService } from "../services/auth.service";
 import type { IDocumentService } from "../services/document.service";
 import {
   documentListResponseSchema,
@@ -10,7 +10,6 @@ import {
   documentNotesResponseSchema,
   documentQuizzesResponseSchema,
   documentStatusResponseSchema,
-  flashcardImageRequestResponseSchema,
   uploadDocumentResponseSchema,
 } from "../schemas/document.schema";
 
@@ -22,7 +21,6 @@ const allowedMimeTypes = new Set([
 const WINDOW_MS = 60 * 1000;
 const MAX_UPLOADS_PER_MINUTE = 8;
 const uploadRateBuckets = new Map<string, { count: number; resetAt: number }>();
-const ACCESS_COOKIE = "dapter_access_token";
 
 const checkUploadRateLimit = (key: string): boolean => {
   const now = Date.now();
@@ -39,41 +37,35 @@ const checkUploadRateLimit = (key: string): boolean => {
   return true;
 };
 
-const readCookie = (cookieHeader: string | null, name: string): string | null => {
-  if (!cookieHeader) {
+const resolveCurrentUserId = async (token: string): Promise<string | null> => {
+  const client = new PocketBase(env.pocketbaseUrl);
+  client.authStore.save(token);
+  try {
+    const authResult = await client.collection("users").authRefresh();
+    return typeof authResult.record?.id === "string" ? authResult.record.id : null;
+  } catch {
     return null;
+  } finally {
+    client.authStore.clear();
   }
-  const parts = cookieHeader.split(";");
-  for (const part of parts) {
-    const [rawKey, ...rawValue] = part.trim().split("=");
-    if (rawKey === name) {
-      return decodeURIComponent(rawValue.join("="));
-    }
-  }
-  return null;
 };
 
-export const createDocumentController = (
-  documentService: IDocumentService,
-  authService: IAuthService,
-) =>
+export const createDocumentController = (documentService: IDocumentService) =>
   new Elysia({ prefix: "/documents" })
     .derive(async ({ request }) => {
       const authHeader = request.headers.get("authorization");
       const bearerToken = authHeader?.startsWith("Bearer ")
         ? authHeader.slice("Bearer ".length).trim()
         : null;
-      const cookieToken = readCookie(request.headers.get("cookie"), ACCESS_COOKIE);
-      const token = bearerToken ?? cookieToken;
+      const token = bearerToken;
       if (!token) {
         return { currentUser: null };
       }
-      try {
-        const user = await authService.verifyAccessToken(token);
-        return { currentUser: user };
-      } catch {
+      const userId = await resolveCurrentUserId(token);
+      if (!userId) {
         return { currentUser: null };
       }
+      return { currentUser: { id: userId } };
     })
     .get(
       "/",
@@ -99,48 +91,6 @@ export const createDocumentController = (
         detail: {
           tags: ["Documents"],
           summary: "List current user's documents",
-        },
-      },
-    )
-    .post(
-      "/:id/flashcards/:flashcardId/image/request",
-      async ({ params, set, currentUser }) => {
-        try {
-          if (!currentUser) {
-            set.status = 401;
-            return { message: "Unauthorized" };
-          }
-          return await documentService.requestFlashcardImage(
-            params.id,
-            params.flashcardId,
-            currentUser.id,
-          );
-        } catch (e) {
-          if (e instanceof AppError) {
-            set.status = e.statusCode;
-            return { message: e.message };
-          }
-          const message = e instanceof Error ? e.message : "Unexpected image request error";
-          set.status = 500;
-          return { message };
-        }
-      },
-      {
-        params: t.Object({
-          id: t.String(),
-          flashcardId: t.String(),
-        }),
-        response: {
-          200: flashcardImageRequestResponseSchema,
-          401: t.Object({ message: t.String() }),
-          403: t.Object({ message: t.String() }),
-          404: t.Object({ message: t.String() }),
-          409: t.Object({ message: t.String() }),
-          500: t.Object({ message: t.String() }),
-        },
-        detail: {
-          tags: ["Documents"],
-          summary: "Request lazy image generation for one flashcard",
         },
       },
     )
@@ -258,46 +208,6 @@ export const createDocumentController = (
             return { message: `File is too large. Max size: ${env.maxUploadSizeBytes}` };
           }
 
-          const selectedPages =
-            typeof body.selectedPages === "string" && body.selectedPages.trim().length > 0
-              ? [...new Set(
-                  body.selectedPages
-                    .split(",")
-                    .map((item) => Number(item.trim()))
-                    .filter((value) => Number.isInteger(value) && value >= 1),
-                )].sort((a, b) => a - b)
-              : undefined;
-          if (selectedPages && selectedPages.length > env.maxSelectedPages) {
-            set.status = 400;
-            return { message: `Selected pages exceed MAX_SELECTED_PAGES=${env.maxSelectedPages}` };
-          }
-
-          if (
-            body.selectedStartPage !== undefined &&
-            body.selectedEndPage !== undefined &&
-            Number(body.selectedStartPage) > Number(body.selectedEndPage)
-          ) {
-            set.status = 400;
-            return { message: "Invalid selected page range" };
-          }
-          if (body.selectedStartPage !== undefined && Number(body.selectedStartPage) < 1) {
-            set.status = 400;
-            return { message: "selectedStartPage must be >= 1" };
-          }
-          if (body.selectedEndPage !== undefined && Number(body.selectedEndPage) < 1) {
-            set.status = 400;
-            return { message: "selectedEndPage must be >= 1" };
-          }
-          if (
-            !selectedPages &&
-            body.selectedStartPage !== undefined &&
-            body.selectedEndPage !== undefined &&
-            Number(body.selectedEndPage) - Number(body.selectedStartPage) + 1 > env.maxSelectedPages
-          ) {
-            set.status = 400;
-            return { message: `Selected range exceeds MAX_SELECTED_PAGES=${env.maxSelectedPages}` };
-          }
-
           const bytes = new Uint8Array(await file.arrayBuffer());
           logger.debug("documents.upload.file.buffer.created", {
             byteLength: bytes.byteLength,
@@ -307,9 +217,6 @@ export const createDocumentController = (
             fileName: file.name,
             mimeType: file.type,
             bytes,
-            selectedStartPage: body.selectedStartPage,
-            selectedEndPage: body.selectedEndPage,
-            selectedPages,
           });
           logger.info("documents.upload.request.queued", {
             documentId: result.documentId,
@@ -329,9 +236,6 @@ export const createDocumentController = (
       {
         body: t.Object({
           file: t.File(),
-          selectedStartPage: t.Optional(t.Numeric()),
-          selectedEndPage: t.Optional(t.Numeric()),
-          selectedPages: t.Optional(t.String()),
         }),
         response: {
           200: uploadDocumentResponseSchema,

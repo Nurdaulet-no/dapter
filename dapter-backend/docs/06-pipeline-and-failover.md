@@ -1,59 +1,52 @@
-# 6. Processing Pipeline and AI Failover
+# 6. Processing Pipeline and AI Runtime
 
 ## Document Processing Pipeline
 
 1. Client authenticates and sends Bearer access token.
 2. `POST /documents/upload` receives file from authenticated user.
 3. Controller validates MIME/size/page limits and upload rate limits.
-4. `StorageService.upload()` stores file in S3-compatible storage.
+4. `StorageService.upload()` stores file in PocketBase file storage (`storage_files` collection).
 5. `DocumentRepository.createDocument()` creates `Document` with:
    - `PROCESSING` status
-   - `userId` owner binding
-   - optional selected page range metadata
+   - owner binding
    - stage statuses initialized (`PENDING`)
 6. `DocumentService.processDocument(documentId)` starts asynchronously.
 7. `StorageService.download()` downloads source file from storage.
-8. `ExtractionService.extractText()` extracts text:
-    - PDF -> `pdf-parse`
-    - PPTX -> XML parsing with `jszip` + `fast-xml-parser`
-    - optional explicit page list from `selectedPages` upload field
+8. `ExtractionService.extractText()` extracts text (PDF/PPTX).
 9. `AIService.generateNotebook()` creates canonical notebook sections.
 10. Notebook is persisted immediately (`notebookStatus=COMPLETED` on success).
-11. `AIService.generateFlashcardsCoreFromNotebook()` creates flashcards core (`question`, `answer`) and persists it as soon as it succeeds.
-12. Flashcards enrichment metadata (`topic`, `iconKey`, `visualNeedScore`, `imagePrompt`, pointer fields) is generated in a non-blocking follow-up call.
-13. `AIService.generateQuizzesFromNotebook()` creates quizzes from notebook text.
-14. Document is marked `COMPLETED` when notebook + flashcards core + quizzes are completed.
-15. If a core stage fails, document status is marked `FAILED`; enrichment stage is non-blocking and can fail independently.
+11. `AIService.generateFlashcardDecksFromNotebook()` creates flashcard decks in one pass, with full card fields (`front`, `back`, `imagePrompt`, optional `tags`, optional `imageUrls`).
+12. Backend runs stage-2 image generation for every card using an internal per-card image prompt and writes `imageUrls`.
+13. Only after step 12 completes, `flashcardsStatus` is marked `COMPLETED` and flashcards become visible via API.
+14. `AIService.generateQuizzesFromNotebook()` creates quizzes in one pass, including questions with `correctIndex`, optional tags/imageUrls, and `imagePrompt`.
+15. Document is marked `COMPLETED` when notebook + flashcards + quizzes are completed.
+16. If a core stage fails, document status is marked `FAILED`.
 
-### Limits and validation
+## Key product guarantees
 
-- upload rejects selected ranges/lists larger than `MAX_SELECTED_PAGES`
-- processing fails when extracted text exceeds `MAX_EXTRACTED_CHARS`
-- errors are explicit so users can reduce selected range
+- Flashcards are hidden until image generation is completed for generated cards.
+- Flashcards and quizzes are persisted in separate tables:
+  - `flashcard_decks` + `flashcards`
+  - `quizzes` + `quiz_questions`
+- Deprecated flashcard metadata fields are removed:
+  - `requiresPointer`
+  - `visualNeedScore`
+  - `pointerX`
+  - `pointerY`
+  - `topic`
+  - `iconKey`
 
-### Stage status fields exposed to frontend
+## Limits and validation
+
+- Upload rejects files larger than `MAX_UPLOAD_SIZE_BYTES`.
+- Processing fails when extracted text exceeds `MAX_EXTRACTED_CHARS`.
+- Errors are explicit and surface precise reason.
+
+## Stage status fields exposed to frontend
 
 - `notebookStatus` / `notebookError`
 - `flashcardsStatus` / `flashcardsError`
-- `flashcardsEnrichmentStatus` / `flashcardsEnrichmentError`
 - `quizzesStatus` / `quizzesError`
-
-## Flashcard image lazy pipeline (provider-agnostic scaffold)
-
-1. Cards with `visualNeedScore >= 0.6` are stored with `imageStatus=not_requested`.
-2. Frontend requests one image via
-   `POST /documents/:id/flashcards/:flashcardId/image/request`.
-3. Backend transitions status to `queued`.
-4. Background job picks queued cards in batches:
-   - `queued -> processing -> failed` (current scaffold behavior)
-5. Flashcards remain fully usable in text mode even when image is failed/missing.
-
-## Flashcards two-stage generation
-
-1. Core flashcards (`question`, `answer`) are critical and saved first.
-2. Enrichment is optional and asynchronous:
-   - metadata may fail without failing the core flashcards stage
-   - fallback defaults keep UX usable even without enrichment data
 
 ## Ownership and access control
 
@@ -63,21 +56,16 @@
   - missing document -> `404`
 - Deletion is owner-only and includes both DB and storage cleanup.
 
-## AI failover
+## AI runtime (OpenAI-only)
 
-Failover is configured via:
+AI generation is configured via:
 
-- `AI_PROVIDER_ORDER` (attempt order)
-- `AI_MODEL_GOOGLE`
-- `AI_MODEL_GROQ`
-- `AI_MODEL_OPENROUTER`
-- `AI_PROVIDER_ATTEMPT_TIMEOUT_MS` (per-provider attempt timeout)
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+- `AI_PROVIDER_ATTEMPT_TIMEOUT_MS`
 
 Logic:
 
-1. The first provider from `AI_PROVIDER_ORDER` is attempted.
-2. Each provider attempt is bounded by `AI_PROVIDER_ATTEMPT_TIMEOUT_MS`.
-3. If it fails (quota/network/auth/model/timeout), the error is logged.
-4. The next provider is tried automatically.
-5. If any provider succeeds, the result is returned.
-6. If all fail, an aggregated error is thrown.
+1. The request is sent to OpenAI model from `OPENAI_MODEL`.
+2. Attempt is bounded by `AI_PROVIDER_ATTEMPT_TIMEOUT_MS`.
+3. On timeout/provider error, stage fails explicitly (no fallback provider chain).
