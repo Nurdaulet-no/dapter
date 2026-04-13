@@ -27,7 +27,7 @@ All routes below require authenticated user.
 
 ### `GET /documents`
 
-Returns current user non-deleted documents sorted by `createdAt DESC`.
+Returns current user documents sorted by `createdAt DESC`.
 
 ### `POST /documents/upload`
 
@@ -56,50 +56,6 @@ Success `200` includes:
 - `quizzesStatus`, `quizzesError`
 - `notes`, `flashcardDecks`, `quizzes` (only when relevant stage completed)
 
-`flashcardDecks` shape:
-
-```json
-[
-  {
-    "id": "deck_1",
-    "title": "Core Concepts",
-    "description": "optional",
-    "cards": [
-      {
-        "id": "card_1",
-        "front": "Question/term",
-        "back": "Answer/definition",
-        "imageUrls": ["https://..."],
-        "tags": ["optional"]
-      }
-    ]
-  }
-]
-```
-
-`quizzes` shape:
-
-```json
-[
-  {
-    "id": "quiz_1",
-    "title": "Quiz title",
-    "description": "optional",
-    "questions": [
-      {
-        "id": "q_1",
-        "question": "Question text",
-        "options": ["A", "B", "C"],
-        "correctIndex": 1,
-        "explanation": "optional",
-        "tags": ["optional"],
-        "imageUrls": ["https://..."]
-      }
-    ]
-  }
-]
-```
-
 ### `GET /documents/:id/flashcards`
 
 Returns stage envelope + `flashcardDecks` after flashcards stage completion.
@@ -125,20 +81,17 @@ Behavior:
 - async fire-and-forget retry
 - returns immediately
 
-### `DELETE /documents/:id`
+### `DELETE /documents/:id/forever?target=notes|flashcards|quizzes`
 
-Soft delete (move to trash).
+Permanently deletes only one artifacts group for the selected document:
+- `target=notes` -> deletes notes rows
+- `target=flashcards` -> deletes flashcard decks + cards rows
+- `target=quizzes` -> deletes quizzes + quiz questions rows
 
-### `GET /documents/trash`
+Response:
 
-Returns current user trashed documents (`deletedAt != null`).
+```json
+{ "success": true }
+```
 
-### `POST /documents/:id/restore`
-
-Restores trashed document.
-
-### `DELETE /documents/:id/forever`
-
-Permanent delete:
-- remove object from storage
-- remove DB row
+Errors: `400`, `401`, `403`, `404`, `500`

@@ -2,19 +2,19 @@
 
 ## Purpose
 
-**Dapter API** is a backend service that converts unstructured educational files (PDF/PPTX) into structured learning artifacts:
+**Dapter API** converts unstructured educational files (PDF/PPTX) into structured learning artifacts:
 
 - Notes
-- Flashcards
-- Quizzes
+- Flashcard decks/cards
+- Quizzes/questions
 
 ## Key Goals
 
 - Asynchronous and resilient document processing
 - Strict layer isolation (Controllers / Services / Repositories)
-- Source files stored in PocketBase file storage
+- Source files and data stored in PocketBase
 - Strict validation of AI output structure before persistence
-- OpenAI-only AI runtime
+- Provider-extensible AI runtime via adapter abstraction
 - Secure multi-tenant access model (each user sees only own data)
 
 ## High-Level Flow
@@ -22,8 +22,8 @@
 1. User authenticates in PocketBase.
 2. Client sends PocketBase Bearer token to protected `/documents/*` endpoints.
 3. User uploads file.
-4. Backend validates MIME/size/page limits and uploads file to PocketBase storage collection.
-5. `Document` record is created with `PROCESSING` and `userId`.
-6. Background process extracts text and generates artifacts with OpenAI.
+4. Backend validates MIME/size and uploads file to PocketBase storage.
+5. `Document` record is created with `PROCESSING` and owner relation.
+6. Background process extracts text and runs AI stages.
 7. Artifacts are persisted; status becomes `COMPLETED` (or `FAILED`).
-8. User retrieves own progress and artifacts via polling endpoints.
+8. User retrieves progress and artifacts via polling endpoints.

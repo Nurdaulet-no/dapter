@@ -8,7 +8,7 @@ Production-oriented backend for document transformation pipeline:
 - Bun + TypeScript (strict)
 - ElysiaJS
 - PocketBase (data/auth/file storage)
-- Vercel AI SDK (OpenAI-only)
+- Vercel AI SDK (provider abstraction, OpenAI adapter enabled)
 
 ## Local setup
 
@@ -21,6 +21,7 @@ Set required values in `.env`.
 
 Required minimum:
 - `POCKETBASE_URL`
+- `AI_PROVIDER=openai`
 - `OPENAI_API_KEY`
 - valid PocketBase auth tokens for clients (handled by PocketBase)
 
@@ -41,7 +42,7 @@ cp .env.example .env
 Update at least:
 
 - `POCKETBASE_URL`
-- `OPENAI_API_KEY`, `OPENAI_MODEL`
+- `AI_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL`
 - `MAX_UPLOAD_SIZE_BYTES`, `MAX_EXTRACTED_CHARS`
 - `AI_PROVIDER_ATTEMPT_TIMEOUT_MS`
 - `AI_STAGE_TIMEOUT_MS`
@@ -87,16 +88,8 @@ Server endpoints:
 - `GET /documents/:id/flashcards` (requires PocketBase Bearer token)
 - `GET /documents/:id/quizzes` (requires PocketBase Bearer token)
 - `GET /documents/:id/notes` (requires PocketBase Bearer token)
-- `DELETE /documents/:id` (requires PocketBase Bearer token)
-- `GET /documents/trash` (requires PocketBase Bearer token)
-- `POST /documents/:id/restore` (requires PocketBase Bearer token)
-- `DELETE /documents/:id/forever` (requires PocketBase Bearer token)
+- `DELETE /documents/:id/forever?target=notes|flashcards|quizzes` (requires PocketBase Bearer token)
 - `GET /docs` (Swagger)
-
-Trash behavior:
-
-- `DELETE /documents/:id` moves document to trash (`deletedAt` is set)
-- cleanup is manual (no background cleanup job)
 
 AI processing is staged notebook-first:
 

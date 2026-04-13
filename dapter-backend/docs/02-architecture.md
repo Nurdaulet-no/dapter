@@ -24,7 +24,7 @@
 - Handle storage, extraction, and AI operations
 - Do not depend on HTTP context
 - `document.service.ts`: staged document pipeline orchestration, ownership checks, retry
-- `ai.service.ts`: schema-first AI generation with OpenAI-only runtime
+- `ai.service.ts`: schema-first AI generation via provider abstraction
 - `extraction.service.ts`: PDF/PPTX full-text extraction
 - `storage.service.ts`: PocketBase upload/download/delete
 
@@ -65,6 +65,7 @@ dapter-backend/
 │   ├── services/
 │   │   ├── document.service.ts
 │   │   ├── extraction.service.ts
+│   │   ├── providers/
 │   │   ├── storage.service.ts
 │   │   └── ai.service.ts
 │   ├── types/

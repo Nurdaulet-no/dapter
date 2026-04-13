@@ -89,7 +89,6 @@ export interface DocumentListItemView {
   mimeType: string;
   fileSize: number;
   status: PocketBaseDocumentStatus;
-  deletedAt?: string;
   createdAt: string;
   updatedAt: string;
 }

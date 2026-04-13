@@ -54,18 +54,22 @@
 - Service/repository enforce ownership checks:
   - foreign document access -> `403`
   - missing document -> `404`
-- Deletion is owner-only and includes both DB and storage cleanup.
+- Artifact deletion is owner-only and target-based via
+  `DELETE /documents/:id/forever?target=notes|flashcards|quizzes`.
 
-## AI runtime (OpenAI-only)
+## AI runtime (provider abstraction)
 
 AI generation is configured via:
 
+- `AI_PROVIDER` (currently `openai`)
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
 - `AI_PROVIDER_ATTEMPT_TIMEOUT_MS`
 
 Logic:
 
-1. The request is sent to OpenAI model from `OPENAI_MODEL`.
-2. Attempt is bounded by `AI_PROVIDER_ATTEMPT_TIMEOUT_MS`.
-3. On timeout/provider error, stage fails explicitly (no fallback provider chain).
+1. The request is sent through provider factory (`AI_PROVIDER`).
+2. Current runtime implementation uses OpenAI provider adapter.
+3. Model call uses `OPENAI_MODEL`.
+4. Attempt is bounded by `AI_PROVIDER_ATTEMPT_TIMEOUT_MS`.
+5. On timeout/provider error, stage fails explicitly.

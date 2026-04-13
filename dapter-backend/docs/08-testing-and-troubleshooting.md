@@ -18,7 +18,7 @@ bun run test:e2e
    - `GET /documents/:id/flashcards`
    - `GET /documents/:id/quizzes`
    - `GET /documents/:id/notes`
-5. `DELETE /documents/:id` -> `{ "success": true }`
+5. `DELETE /documents/:id/forever?target=notes` -> `{ "success": true }`
 
 ## Common Issues
 

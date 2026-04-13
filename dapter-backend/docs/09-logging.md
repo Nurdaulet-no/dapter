@@ -21,29 +21,23 @@ Complete map of all added logging points:
   - `http.request.received`
   - `http.request.completed`
   - `http.request.failed`
-- Auth:
-  - `auth.register.failed`
-  - `auth.login.failed`
-  - `auth.refresh.failed`
-  - `auth.logout.failed`
 - Pipeline:
   - `pipeline.upload_and_queue.started`
+  - `pipeline.background_processing.triggered`
   - `pipeline.process_document.started`
+  - `pipeline.stage.started`
   - `pipeline.stage.completed`
+  - `pipeline.stage.finished`
+  - `pipeline.stage.retry.failed`
   - `pipeline.process_document.completed`
   - `pipeline.process_document.failed`
-  - `pipeline.flashcard_image.request.queued`
-  - `pipeline.flashcard_image.queue.completed`
-  - `pipeline.flashcard_image.process_failed`
+  - `pipeline.status_lookup.started`
+  - `pipeline.flashcards_lookup.started`
+  - `pipeline.quizzes_lookup.started`
+  - `pipeline.notes_lookup.started`
 - AI runtime:
   - `ai.generation.started`
   - `ai.generation.failed`
-  - `ai.openai.attempt.started`
-  - `ai.openai.attempt.failed`
-  - `ai.openai.attempt.completed`
-- Background jobs:
-  - `documents.trash.cleanup.completed`
-  - `documents.trash.cleanup.item_failed`
-  - `documents.trash.cleanup.run_failed`
-  - `pipeline.flashcard_image.queue.completed`
-  - `pipeline.flashcard_image.queue.run_failed`
+  - `ai.provider.attempt.started`
+  - `ai.provider.attempt.failed`
+  - `ai.provider.attempt.completed`

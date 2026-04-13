@@ -26,7 +26,6 @@ export interface IDocumentRepository {
     flashcardsError: string | null;
     quizzesStatus: ArtifactStageStatus;
     quizzesError: string | null;
-    deletedAt: Date | null;
   } | null>;
   markStageProcessing(id: string, stage: "notebook" | "flashcards" | "quizzes"): Promise<void>;
   saveNotebookArtifacts(id: string, notes: LearningArtifactInput["notes"]): Promise<void>;
@@ -45,9 +44,8 @@ export interface IDocumentRepository {
   getDocumentQuizzes(id: string, userId: string): Promise<DocumentQuizzesView | null>;
   getDocumentNotes(id: string, userId: string): Promise<DocumentNotesView | null>;
   getNotesForProcessing(documentId: string): Promise<Array<{ title: string; content: string }>>;
-  getDocumentsByUserId(userId: string, options?: { includeDeleted?: boolean }): Promise<DocumentListItemView[]>;
-  getExpiredTrashDocuments(cutoff: Date, limit: number): Promise<Array<{ id: string; fileKey: string }>>;
-  softDeleteById(id: string, userId: string): Promise<void>;
-  restoreById(id: string, userId: string): Promise<void>;
-  deleteById(id: string, userId?: string): Promise<void>;
+  getDocumentsByUserId(userId: string): Promise<DocumentListItemView[]>;
+  deleteNotesArtifacts(documentId: string): Promise<void>;
+  deleteFlashcardsArtifacts(documentId: string): Promise<void>;
+  deleteQuizzesArtifacts(documentId: string): Promise<void>;
 }

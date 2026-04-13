@@ -26,20 +26,16 @@ export interface IDocumentService {
   ): Promise<Awaited<ReturnType<IDocumentRepository["getDocumentQuizzes"]>>>;
   getNotes(documentId: string, userId: string): Promise<Awaited<ReturnType<IDocumentRepository["getDocumentNotes"]>>>;
   getDocuments(userId: string): ReturnType<IDocumentRepository["getDocumentsByUserId"]>;
-  getTrashDocuments(userId: string): ReturnType<IDocumentRepository["getDocumentsByUserId"]>;
-  restoreDocument(documentId: string, userId: string): Promise<void>;
-  deleteDocument(documentId: string, userId: string): Promise<void>;
-  deleteDocumentForever(documentId: string, userId: string): Promise<void>;
+  deleteArtifactsForever(
+    documentId: string,
+    userId: string,
+    target: "notes" | "flashcards" | "quizzes",
+  ): Promise<void>;
   retryStage(
     documentId: string,
     stage: "notebook" | "flashcards" | "quizzes",
     userId: string,
   ): Promise<{ documentId: string; status: "PROCESSING" }>;
-  cleanupExpiredTrash(retentionDays: number, batchSize: number): Promise<{
-    scanned: number;
-    deleted: number;
-    failed: number;
-  }>;
 }
 
 export class DocumentService implements IDocumentService {
@@ -137,42 +133,24 @@ export class DocumentService implements IDocumentService {
   }
 
   public getDocuments(userId: string) {
-    return this.repository.getDocumentsByUserId(userId, { includeDeleted: false });
+    return this.repository.getDocumentsByUserId(userId);
   }
 
-  public async getTrashDocuments(userId: string) {
-    const documents = await this.repository.getDocumentsByUserId(userId, { includeDeleted: true });
-    return documents.filter((item) => Boolean(item.deletedAt));
-  }
-
-  public async restoreDocument(documentId: string, userId: string): Promise<void> {
-    const doc = await this.repository.getById(documentId, userId);
-    if (!doc) {
-      throw new AppError(404, "DOCUMENT_NOT_FOUND", "Document not found");
-    }
-    if (!doc.deletedAt) {
-      throw new AppError(409, "DOCUMENT_NOT_IN_TRASH", "Document is not in trash");
-    }
-    await this.repository.restoreById(documentId, userId);
-  }
-
-  public async deleteDocument(documentId: string, userId: string): Promise<void> {
-    const doc = await this.repository.getById(documentId, userId);
-    if (!doc) throw new AppError(404, "DOCUMENT_NOT_FOUND", "Document not found");
-    if (doc.deletedAt) {
-      throw new AppError(409, "DOCUMENT_ALREADY_IN_TRASH", "Document is already in trash");
-    }
-
-    await this.repository.softDeleteById(documentId, userId);
-  }
-
-  public async deleteDocumentForever(documentId: string, userId: string): Promise<void> {
+  public async deleteArtifactsForever(
+    documentId: string,
+    userId: string,
+    target: "notes" | "flashcards" | "quizzes",
+  ): Promise<void> {
     await this.ensureOwnershipOrNotFound(documentId, userId);
-    const doc = await this.repository.getById(documentId, userId);
-    if (!doc) throw new AppError(404, "DOCUMENT_NOT_FOUND", "Document not found");
-
-    await this.storageService.delete(doc.fileKey);
-    await this.repository.deleteById(documentId, userId);
+    if (target === "notes") {
+      await this.repository.deleteNotesArtifacts(documentId);
+      return;
+    }
+    if (target === "flashcards") {
+      await this.repository.deleteFlashcardsArtifacts(documentId);
+      return;
+    }
+    await this.repository.deleteQuizzesArtifacts(documentId);
   }
 
   public async retryStage(
@@ -216,38 +194,6 @@ export class DocumentService implements IDocumentService {
     })();
 
     return { documentId, status: "PROCESSING" };
-  }
-
-  public async cleanupExpiredTrash(
-    retentionDays: number,
-    batchSize: number,
-  ): Promise<{ scanned: number; deleted: number; failed: number }> {
-    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-    const expired = await this.repository.getExpiredTrashDocuments(cutoff, batchSize);
-    let deleted = 0;
-    let failed = 0;
-
-    for (const item of expired) {
-      try {
-        await this.storageService.delete(item.fileKey);
-        await this.repository.deleteById(item.id);
-        deleted += 1;
-      } catch (error) {
-        failed += 1;
-        logger.error("documents.trash.cleanup.item_failed", {
-          documentId: item.id,
-          fileKey: item.fileKey,
-          message: error instanceof Error ? error.message : "Unexpected cleanup error",
-          error,
-        });
-      }
-    }
-
-    return {
-      scanned: expired.length,
-      deleted,
-      failed,
-    };
   }
 
   private async ensureOwnershipOrNotFound(documentId: string, userId: string): Promise<void> {
@@ -321,7 +267,7 @@ export class DocumentService implements IDocumentService {
       const text = await this.extractionService.extractText({ mimeType, bytes });
       if (text.length > env.maxExtractedChars) {
         throw new Error(
-          `Extracted text exceeds MAX_EXTRACTED_CHARS=${env.maxExtractedChars}. Please narrow selected pages.`,
+          `Extracted text exceeds MAX_EXTRACTED_CHARS=${env.maxExtractedChars}.`,
         );
       }
       logger.debug("pipeline.process_document.extraction.completed", {

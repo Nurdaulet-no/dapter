@@ -5,11 +5,13 @@ Primary config is loaded in `src/config/env.ts`.
 ## Required variables (startup fails if missing)
 
 - `POCKETBASE_URL`
-- `OPENAI_API_KEY`
+- `AI_PROVIDER` (`openai` for now)
+- `OPENAI_API_KEY` (required when `AI_PROVIDER=openai`)
 
 ## Optional variables and defaults
 
 - `PORT` (default `3000`)
+- `AI_PROVIDER` (default `openai`)
 - `OPENAI_MODEL` (default `gpt-4.1-mini`)
 - `MAX_UPLOAD_SIZE_BYTES` (default `20971520`)
 - `MAX_EXTRACTED_CHARS` (default `30000`)
@@ -49,6 +51,7 @@ How it is applied:
 ```dotenv
 PORT=3000
 POCKETBASE_URL=http://127.0.0.1:8090
+AI_PROVIDER=openai
 OPENAI_API_KEY=<openai-api-key>
 OPENAI_MODEL=gpt-4.1-mini
 

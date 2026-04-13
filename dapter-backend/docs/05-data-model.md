@@ -27,38 +27,25 @@ Source of truth for runtime contract: `src/config/pocketbase-schema.ts`.
 
 ## `User`
 
-Columns:
-- `id` (record id)
-- `email` (unique)
-- `createdAt`
-- `updatedAt`
-
-Relations:
-- `documents` (1:N)
+Auth collection managed by PocketBase.
 
 ## `Document`
 
 Columns:
 - `id` (record id)
-- file metadata:
-  - `fileName`
-  - `mimeType`
-  - `fileSize`
-  - `storageFileId` (reference to `storage_files`)
-- classification:
-  - `type` (`DocumentType`)
-- global status:
-  - `status` (`DocumentStatus`, default `PROCESSING`)
-  - `error` (nullable)
-- stage statuses:
-  - `notebookStatus`, `notebookError`
-  - `flashcardsStatus`, `flashcardsError`
-  - `quizzesStatus`, `quizzesError`
-- ownership and lifecycle:
-  - `owner` (FK -> `users.id`)
-  - `deletedAt` (nullable soft-delete marker)
-  - `createdAt`
-  - `updatedAt`
+- `owner` (FK -> `users.id`)
+- `fileName`
+- `mimeType`
+- `fileSize`
+- `storageFileId` (reference to `storage_files`)
+- `type` (`DocumentType`)
+- `status` (`DocumentStatus`)
+- `error` (nullable)
+- `notebookStatus`, `notebookError`
+- `flashcardsStatus`, `flashcardsError`
+- `quizzesStatus`, `quizzesError`
+- `createdAt`
+- `updatedAt`
 
 Relations:
 - `notes` (1:N)
@@ -70,7 +57,7 @@ Relations:
 ## `Note`
 
 Columns:
-- `id` (record id)
+- `id`
 - `document` (FK -> `documents.id`)
 - `title`
 - `content`
@@ -81,9 +68,9 @@ Columns:
 ## `FlashcardDeck` (`flashcard_decks`)
 
 Columns:
-- `id` (record id)
+- `id`
 - `document` (FK -> `documents.id`)
-- `externalId` (original model id from AI output)
+- `externalId`
 - `title`
 - `description` (nullable)
 - `sortOrder`
@@ -93,10 +80,10 @@ Columns:
 ## `Flashcard` (`flashcards`)
 
 Columns:
-- `id` (record id)
+- `id`
 - `document` (FK -> `documents.id`)
 - `deck` (FK -> `flashcard_decks.id`)
-- `externalId` (original model id from AI output)
+- `externalId`
 - `front`
 - `back`
 - `imagePrompt`
@@ -106,20 +93,12 @@ Columns:
 - `createdAt`
 - `updatedAt`
 
-Removed fields (no longer in model):
-- `requiresPointer`
-- `visualNeedScore`
-- `pointerX`
-- `pointerY`
-- `topic`
-- `iconKey`
-
 ## `Quiz` (`quizzes`)
 
 Columns:
-- `id` (record id)
+- `id`
 - `document` (FK -> `documents.id`)
-- `externalId` (original model id from AI output)
+- `externalId`
 - `title`
 - `description` (nullable)
 - `sortOrder`
@@ -129,13 +108,13 @@ Columns:
 ## `QuizQuestion` (`quiz_questions`)
 
 Columns:
-- `id` (record id)
+- `id`
 - `document` (FK -> `documents.id`)
 - `quiz` (FK -> `quizzes.id`)
-- `externalId` (original model id from AI output)
+- `externalId`
 - `question`
 - `options` (JSON array)
-- `correctIndex` (int index)
+- `correctIndex`
 - `explanation` (nullable)
 - `tags` (JSON array of strings)
 - `imagePrompt`

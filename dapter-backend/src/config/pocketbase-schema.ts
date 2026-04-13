@@ -44,7 +44,6 @@ export const pocketBaseSchemaMapping: PocketBaseSchemaMapping = {
         { name: "flashcardsError", type: "text" },
         { name: "quizzesStatus", type: "select", required: true, options: ["PENDING", "PROCESSING", "COMPLETED", "FAILED"] },
         { name: "quizzesError", type: "text" },
-        { name: "deletedAt", type: "date" },
       ],
     },
     {

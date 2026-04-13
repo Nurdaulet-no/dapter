@@ -17,6 +17,7 @@ const frontendBaseUrls = parseOrigins(Bun.env.FRONTEND_BASE_URLS ?? "http://loca
 export const env = {
   port: Number(Bun.env.PORT ?? 3000),
   pocketbaseUrl: requireEnv("POCKETBASE_URL"),
+  aiProvider: Bun.env.AI_PROVIDER ?? "openai",
   openaiApiKey: requireEnv("OPENAI_API_KEY"),
   openaiModel: Bun.env.OPENAI_MODEL ?? "gpt-4.1-mini",
   maxUploadSizeBytes: Number(Bun.env.MAX_UPLOAD_SIZE_BYTES ?? 20 * 1024 * 1024),

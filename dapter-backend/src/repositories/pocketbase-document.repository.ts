@@ -146,7 +146,6 @@ export class PocketBaseDocumentRepository implements IDocumentRepository {
       flashcardsError: toStringOrNull(record.flashcardsError),
       quizzesStatus: toStage(record.quizzesStatus),
       quizzesError: toStringOrNull(record.quizzesError),
-      deletedAt: toDate(record.deletedAt),
     };
   }
 
@@ -604,13 +603,8 @@ export class PocketBaseDocumentRepository implements IDocumentRepository {
     return notes.map((item) => ({ title: item.title, content: item.content }));
   }
 
-  public async getDocumentsByUserId(
-    userId: string,
-    options?: { includeDeleted?: boolean },
-  ): Promise<DocumentListItemView[]> {
-    const filter = options?.includeDeleted
-      ? `owner="${escapeFilter(userId)}"`
-      : `owner="${escapeFilter(userId)}" && deletedAt=""`;
+  public async getDocumentsByUserId(userId: string): Promise<DocumentListItemView[]> {
+    const filter = `owner="${escapeFilter(userId)}"`;
     const rows = (await pocketbase.collection("documents").getFullList({
       filter,
     })) as PBRecord[];
@@ -621,62 +615,13 @@ export class PocketBaseDocumentRepository implements IDocumentRepository {
         mimeType: toStringOrNull(item.mimeType) ?? "",
         fileSize: toNumberOrNull(item.fileSize) ?? 0,
         status: toDocStatus(item.status),
-        deletedAt: toDate(item.deletedAt)?.toISOString(),
         createdAt: toStringOrNull(item.created) ?? new Date().toISOString(),
         updatedAt: toStringOrNull(item.updated) ?? new Date().toISOString(),
       })),
     );
   }
 
-  public async getExpiredTrashDocuments(
-    cutoff: Date,
-    limit: number,
-  ): Promise<Array<{ id: string; fileKey: string }>> {
-    const rows = (await pocketbase.collection("documents").getFullList({
-      filter: `deletedAt!=""`,
-    })) as PBRecord[];
-    return byCreatedAsc(
-      rows
-        .map((item) => ({
-          id: item.id,
-          fileKey: toStringOrNull(item.storageFileId) ?? "",
-          deletedAt: toDate(item.deletedAt),
-          createdAt: toStringOrNull(item.updated) ?? "",
-        }))
-        .filter((item) => item.deletedAt && item.deletedAt <= cutoff)
-        .slice(0, limit),
-    ).map((item) => ({ id: item.id, fileKey: item.fileKey }));
-  }
-
-  public async softDeleteById(id: string, userId: string): Promise<void> {
-    const doc = await this.getById(id, userId);
-    if (!doc) {
-      return;
-    }
-    await pocketbase.collection("documents").update(id, {
-      deletedAt: new Date().toISOString(),
-    });
-  }
-
-  public async restoreById(id: string, userId: string): Promise<void> {
-    const doc = await this.getById(id, userId);
-    if (!doc) {
-      return;
-    }
-    await pocketbase.collection("documents").update(id, {
-      deletedAt: "",
-    });
-  }
-
-  public async deleteById(id: string, userId?: string): Promise<void> {
-    const doc = await this.getById(id, userId);
-    if (!doc) {
-      return;
-    }
-    await pocketbase.collection("documents").delete(id);
-  }
-
-  private async deleteFlashcardsArtifacts(documentId: string): Promise<void> {
+  public async deleteFlashcardsArtifacts(documentId: string): Promise<void> {
     const [cards, decks] = await Promise.all([
       pocketbase.collection("flashcards").getFullList({
         filter: `document="${escapeFilter(documentId)}"`,
@@ -692,7 +637,7 @@ export class PocketBaseDocumentRepository implements IDocumentRepository {
     ]);
   }
 
-  private async deleteQuizzesArtifacts(documentId: string): Promise<void> {
+  public async deleteQuizzesArtifacts(documentId: string): Promise<void> {
     const [questions, quizzes] = await Promise.all([
       pocketbase.collection("quiz_questions").getFullList({
         filter: `document="${escapeFilter(documentId)}"`,
@@ -714,5 +659,12 @@ export class PocketBaseDocumentRepository implements IDocumentRepository {
     })) as PBRecord[];
     await Promise.all(notes.map((item) => pocketbase.collection("notes").delete(item.id)));
     await Promise.all([this.deleteFlashcardsArtifacts(documentId), this.deleteQuizzesArtifacts(documentId)]);
+  }
+
+  public async deleteNotesArtifacts(documentId: string): Promise<void> {
+    const notes = (await pocketbase.collection("notes").getFullList({
+      filter: `document="${escapeFilter(documentId)}"`,
+    })) as PBRecord[];
+    await Promise.all(notes.map((item) => pocketbase.collection("notes").delete(item.id)));
   }
 }

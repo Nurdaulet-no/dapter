@@ -53,7 +53,6 @@ export const documentListResponseSchema = t.Array(
     mimeType: t.String(),
     fileSize: t.Number(),
     status: documentStatusSchema,
-    deletedAt: t.Optional(t.String()),
     createdAt: t.String(),
     updatedAt: t.String(),
   }),

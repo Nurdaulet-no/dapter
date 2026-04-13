@@ -19,7 +19,7 @@ interface DocumentStatusResponse {
   status: DocumentStatus;
   error?: string;
   notes?: unknown[];
-  flashcards?: unknown[];
+  flashcardDecks?: unknown[];
   quizzes?: unknown[];
 }
 
@@ -154,24 +154,24 @@ async function testOwnershipAndDelete(): Promise<void> {
   });
   assert(forbidden.status === 403, `Expected 403 for foreign document, got ${forbidden.status}`);
 
-  logStep("DELETE /documents/:id (owner)");
+  logStep("DELETE /documents/:id/forever?target=notes (owner)");
   const deleted = await requestJson<{ success: boolean }>(
-    `/documents/${uploadedDocumentId}`,
+    `/documents/${uploadedDocumentId}/forever?target=notes`,
     {
       method: "DELETE",
       headers: withBearer(PB_TOKEN_A),
     },
   );
-  assert(deleted.status === 200, `Delete expected 200, got ${deleted.status}`);
+  assert(deleted.status === 200, `Delete notes expected 200, got ${deleted.status}`);
   assert((deleted.body as { success?: boolean }).success === true, "Delete expected success=true");
 
-  logStep("GET /documents/:id/status after delete");
-  const notFoundAfterDelete = await requestJson(`/documents/${uploadedDocumentId}/status`, {
+  logStep("GET /documents/:id/status after notes delete");
+  const statusAfterDelete = await requestJson(`/documents/${uploadedDocumentId}/status`, {
     headers: withBearer(PB_TOKEN_A),
   });
   assert(
-    notFoundAfterDelete.status === 404,
-    `Status after delete expected 404, got ${notFoundAfterDelete.status}`,
+    statusAfterDelete.status === 200,
+    `Status after notes delete expected 200, got ${statusAfterDelete.status}`,
   );
 }
 

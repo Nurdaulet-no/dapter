@@ -94,33 +94,6 @@ export const createDocumentController = (documentService: IDocumentService) =>
         },
       },
     )
-    .get(
-      "/trash",
-      async ({ currentUser, set }) => {
-        try {
-          if (!currentUser) {
-            set.status = 401;
-            return { message: "Unauthorized" };
-          }
-          return await documentService.getTrashDocuments(currentUser.id);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Unexpected list error";
-          set.status = 500;
-          return { message };
-        }
-      },
-      {
-        response: {
-          200: documentListResponseSchema,
-          401: t.Object({ message: t.String() }),
-          500: t.Object({ message: t.String() }),
-        },
-        detail: {
-          tags: ["Documents"],
-          summary: "List current user's trashed documents",
-        },
-      },
-    )
     .post(
       "/:id/retry/:stage",
       async ({ params, set, currentUser }) => {
@@ -430,96 +403,19 @@ export const createDocumentController = (documentService: IDocumentService) =>
       },
     )
     .delete(
-      "/:id",
-      async ({ params, set, currentUser }) => {
-        try {
-          if (!currentUser) {
-            set.status = 401;
-            return { message: "Unauthorized" };
-          }
-          await documentService.deleteDocument(params.id, currentUser.id);
-          return { success: true };
-        } catch (e) {
-          if (
-            e instanceof AppError &&
-            (e.statusCode === 403 || e.statusCode === 404 || e.statusCode === 409)
-          ) {
-            set.status = e.statusCode;
-            return { message: e.message };
-          }
-          const message = e instanceof Error ? e.message : "Unexpected delete error";
-          set.status = 500;
-          return { message };
-        }
-      },
-      {
-        params: t.Object({
-          id: t.String(),
-        }),
-        response: {
-          200: t.Object({ success: t.Boolean() }),
-          401: t.Object({ message: t.String() }),
-          403: t.Object({ message: t.String() }),
-          404: t.Object({ message: t.String() }),
-          409: t.Object({ message: t.String() }),
-          500: t.Object({ message: t.String() }),
-        },
-        detail: {
-          tags: ["Documents"],
-          summary: "Move current user's document to trash",
-        },
-      },
-    )
-    .post(
-      "/:id/restore",
-      async ({ params, set, currentUser }) => {
-        try {
-          if (!currentUser) {
-            set.status = 401;
-            return { message: "Unauthorized" };
-          }
-          await documentService.restoreDocument(params.id, currentUser.id);
-          return { success: true };
-        } catch (e) {
-          if (
-            e instanceof AppError &&
-            (e.statusCode === 403 || e.statusCode === 404 || e.statusCode === 409)
-          ) {
-            set.status = e.statusCode;
-            return { message: e.message };
-          }
-          const message = e instanceof Error ? e.message : "Unexpected restore error";
-          set.status = 500;
-          return { message };
-        }
-      },
-      {
-        params: t.Object({
-          id: t.String(),
-        }),
-        response: {
-          200: t.Object({ success: t.Boolean() }),
-          401: t.Object({ message: t.String() }),
-          403: t.Object({ message: t.String() }),
-          404: t.Object({ message: t.String() }),
-          409: t.Object({ message: t.String() }),
-          500: t.Object({ message: t.String() }),
-        },
-        detail: {
-          tags: ["Documents"],
-          summary: "Restore a trashed document",
-        },
-      },
-    )
-    .delete(
       "/:id/forever",
-      async ({ params, set, currentUser }) => {
+      async ({ params, query, set, currentUser }) => {
         try {
           if (!currentUser) {
             set.status = 401;
             return { message: "Unauthorized" };
           }
-          await documentService.deleteDocumentForever(params.id, currentUser.id);
+          const target = query.target;
+          if (target !== "notes" && target !== "flashcards" && target !== "quizzes") {
+            set.status = 400;
+            return { message: "Invalid target. Allowed: notes, flashcards, quizzes" };
+          }
+          await documentService.deleteArtifactsForever(params.id, currentUser.id, target);
           return { success: true };
         } catch (e) {
           if (e instanceof AppError && (e.statusCode === 403 || e.statusCode === 404)) {
@@ -535,8 +431,12 @@ export const createDocumentController = (documentService: IDocumentService) =>
         params: t.Object({
           id: t.String(),
         }),
+        query: t.Object({
+          target: t.Union([t.Literal("notes"), t.Literal("flashcards"), t.Literal("quizzes")]),
+        }),
         response: {
           200: t.Object({ success: t.Boolean() }),
+          400: t.Object({ message: t.String() }),
           401: t.Object({ message: t.String() }),
           403: t.Object({ message: t.String() }),
           404: t.Object({ message: t.String() }),
@@ -544,7 +444,7 @@ export const createDocumentController = (documentService: IDocumentService) =>
         },
         detail: {
           tags: ["Documents"],
-          summary: "Delete document forever with storage cleanup",
+          summary: "Delete one artifacts group forever: notes|flashcards|quizzes",
         },
       },
     );
