@@ -45,10 +45,12 @@ async function requestJson<T>(
   path: string,
   init?: RequestInit,
 ): Promise<{ status: number; body: T | Record<string, unknown> }> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
+  const response = await Promise.race([
+    fetch(`${API_BASE_URL}${path}`, init),
+    Bun.sleep(REQUEST_TIMEOUT_MS).then(() => {
+      throw new Error(`Request timeout after ${REQUEST_TIMEOUT_MS}ms: ${path}`);
+    }),
+  ]) as Response;
   const raw = await response.text();
   let body: T | Record<string, unknown>;
   if (!raw) {
@@ -93,12 +95,16 @@ async function testDocumentsFlow(): Promise<void> {
   const form = new FormData();
   form.append("file", new Blob([fileBuffer], { type: "application/pdf" }), "Smart Gym Membership.pdf");
 
-  const uploadResponse = await fetch(`${API_BASE_URL}/documents/upload`, {
-    method: "POST",
-    headers: withBearer(PB_TOKEN_A),
-    body: form,
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
+  const uploadResponse = await Promise.race([
+    fetch(`${API_BASE_URL}/documents/upload`, {
+      method: "POST",
+      headers: withBearer(PB_TOKEN_A),
+      body: form,
+    }),
+    Bun.sleep(REQUEST_TIMEOUT_MS).then(() => {
+      throw new Error(`Request timeout after ${REQUEST_TIMEOUT_MS}ms: /documents/upload`);
+    }),
+  ]) as Response;
   const uploadBody = (await uploadResponse.json()) as UploadResponse | Record<string, unknown>;
   assert(uploadResponse.status === 200, `Upload expected 200, got ${uploadResponse.status}`);
   assert((uploadBody as UploadResponse).documentId, "Upload: missing documentId");
@@ -121,10 +127,7 @@ async function testDocumentsFlow(): Promise<void> {
     await Bun.sleep(POLL_INTERVAL_MS);
   }
   assert(finalStatus, "Polling timeout reached before completion");
-  assert(
-    finalStatus.status === "COMPLETED" || finalStatus.status === "FAILED",
-    "Unexpected final status",
-  );
+  assert(finalStatus.status === "COMPLETED", `Document processing failed: ${finalStatus.error ?? "unknown error"}`);
 
   logStep("GET /documents/:id/notes");
   const notes = await requestJson(`/documents/${uploadedDocumentId}/notes`, {
@@ -148,30 +151,40 @@ async function testDocumentsFlow(): Promise<void> {
 async function testOwnershipAndDelete(): Promise<void> {
   assert(uploadedDocumentId, "No uploaded document id for ownership test");
 
-  logStep("Ownership check: user B tries user A document");
-  const forbidden = await requestJson(`/documents/${uploadedDocumentId}/status`, {
-    headers: withBearer(PB_TOKEN_B),
-  });
-  assert(forbidden.status === 403, `Expected 403 for foreign document, got ${forbidden.status}`);
+  if (PB_TOKEN_B.length > 10) {
+    logStep("Ownership check: user B tries user A document");
+    const forbidden = await requestJson(`/documents/${uploadedDocumentId}/status`, {
+      headers: withBearer(PB_TOKEN_B),
+    });
+    assert(forbidden.status === 403, `Expected 403 for foreign document, got ${forbidden.status}`);
+  } else {
+    console.log("[INFO] E2E_PB_TOKEN_B not set, ownership check skipped.");
+  }
 
-  logStep("DELETE /documents/:id/forever?target=notes (owner)");
-  const deleted = await requestJson<{ success: boolean }>(
-    `/documents/${uploadedDocumentId}/forever?target=notes`,
-    {
-      method: "DELETE",
-      headers: withBearer(PB_TOKEN_A),
-    },
-  );
-  assert(deleted.status === 200, `Delete notes expected 200, got ${deleted.status}`);
-  assert((deleted.body as { success?: boolean }).success === true, "Delete expected success=true");
+  const deleteTarget = async (target: "notes" | "flashcards" | "quizzes") => {
+    logStep(`DELETE /documents/:id/forever?target=${target} (owner)`);
+    const deleted = await requestJson<{ success: boolean }>(
+      `/documents/${uploadedDocumentId}/forever?target=${target}`,
+      {
+        method: "DELETE",
+        headers: withBearer(PB_TOKEN_A),
+      },
+    );
+    assert(deleted.status === 200, `Delete ${target} expected 200, got ${deleted.status}`);
+    assert((deleted.body as { success?: boolean }).success === true, "Delete expected success=true");
+  };
 
-  logStep("GET /documents/:id/status after notes delete");
+  await deleteTarget("notes");
+  await deleteTarget("flashcards");
+  await deleteTarget("quizzes");
+
+  logStep("GET /documents/:id/status after selective deletes");
   const statusAfterDelete = await requestJson(`/documents/${uploadedDocumentId}/status`, {
     headers: withBearer(PB_TOKEN_A),
   });
   assert(
     statusAfterDelete.status === 200,
-    `Status after notes delete expected 200, got ${statusAfterDelete.status}`,
+    `Status after deletes expected 200, got ${statusAfterDelete.status}`,
   );
 }
 
@@ -179,7 +192,6 @@ async function run(): Promise<void> {
   console.log("[INFO] API:", API_BASE_URL);
   console.log("[INFO] PDF:", PDF_PATH);
   assert(PB_TOKEN_A.length > 10, "Missing E2E_PB_TOKEN_A");
-  assert(PB_TOKEN_B.length > 10, "Missing E2E_PB_TOKEN_B");
 
   await testHealth();
   await testDocumentsFlow();

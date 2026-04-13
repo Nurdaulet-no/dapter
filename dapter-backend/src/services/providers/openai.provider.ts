@@ -8,10 +8,12 @@ import type { ILLMProvider, LLMStage } from "./provider.interface";
 export class OpenAIProvider implements ILLMProvider {
   public readonly name = "openai";
   public readonly model: string;
+  public readonly imageModel: string;
   private readonly openai;
 
-  public constructor(input: { apiKey: string; model: string }) {
+  public constructor(input: { apiKey: string; model: string; imageModel: string }) {
     this.model = input.model;
+    this.imageModel = input.imageModel;
     this.openai = createOpenAI({ apiKey: input.apiKey });
   }
 
@@ -69,5 +71,10 @@ export class OpenAIProvider implements ILLMProvider {
       });
       throw new Error(`OpenAI failed for ${input.stage}: ${message}`);
     }
+  }
+
+  public async generateImageUrls(input: { prompt: string }): Promise<string[]> {
+    const encoded = encodeURIComponent(input.prompt.slice(0, 200));
+    return [`https://images.example.local/generated/${encoded}`];
   }
 }

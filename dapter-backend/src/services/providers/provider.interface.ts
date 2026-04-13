@@ -10,4 +10,7 @@ export interface ILLMProvider {
     schema: ZodTypeAny;
     prompt: string;
   }): Promise<T>;
+  generateImageUrls(input: {
+    prompt: string;
+  }): Promise<string[]>;
 }

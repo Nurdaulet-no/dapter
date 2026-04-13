@@ -6,6 +6,7 @@ import type { PocketBaseDocumentType } from "../types/pocketbase";
 import type { IAIService } from "./ai.service";
 import type { IExtractionService } from "./extraction.service";
 import type { IStorageService } from "./storage.service";
+import { createLLMProvider } from "./providers/factory";
 
 export interface IDocumentService {
   uploadAndQueue(input: {
@@ -39,6 +40,8 @@ export interface IDocumentService {
 }
 
 export class DocumentService implements IDocumentService {
+  private readonly llmProvider = createLLMProvider();
+
   public constructor(
     private readonly repository: IDocumentRepository,
     private readonly storageService: IStorageService,
@@ -316,9 +319,8 @@ export class DocumentService implements IDocumentService {
     const cards = await this.repository.getFlashcardsForImageGeneration(documentId);
     await Promise.all(
       cards.map(async (card) => {
-        const encoded = encodeURIComponent(card.imagePrompt.slice(0, 200));
-        const imageUrl = `https://images.example.local/generated/${encoded}`;
-        await this.repository.updateFlashcardImageUrls(documentId, card.id, [imageUrl]);
+        const imageUrls = await this.llmProvider.generateImageUrls({ prompt: card.imagePrompt });
+        await this.repository.updateFlashcardImageUrls(documentId, card.id, imageUrls);
       }),
     );
   }
