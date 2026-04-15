@@ -1,43 +1,72 @@
 # Dapter Project
 
-## Project Description
+Dapter is a document-processing backend for turning PDF/PPTX files into structured learning content: notes, flashcards, and quizzes.
 
-Dapter is an automated backend system that transforms unstructured educational materials (PDF documents and PPTX presentations) into structured micro-learning content: notes, flashcards, and quizzes.
+## Current backend stack
 
-The platform is built around an asynchronous data pipeline designed for reliability and clean architecture boundaries. Uploaded files are stored in S3-compatible object storage, processed in background steps, and enriched with LLM-generated learning artifacts validated by strict schemas before persistence.
+- Bun + TypeScript
+- ElysiaJS
+- PocketBase for auth, data, and file storage
+- Vercel AI SDK with OpenAI
 
-## Core Workflow
+## What it does
 
-1. Upload a PDF/PPTX document via API.
-2. Validate file type/size and upload directly to object storage.
-3. Register the document in PostgreSQL with `PROCESSING` status.
-4. Extract text from the stored file.
-5. Generate notes, flashcards, and quizzes using AI with provider failover.
-6. Persist generated artifacts in the database and mark the document as `COMPLETED`.
-7. Retrieve status and final content via polling endpoint.
+1. User logs in through PocketBase and gets a Bearer token.
+2. Client uploads a PDF/PPTX document to the backend.
+3. Backend stores the file in PocketBase and creates a `PROCESSING` document record.
+4. Backend extracts text and generates notes, flashcards, and quizzes.
+5. Flashcards are exposed only after image generation is finished.
+6. Client polls status and reads the final artifacts.
 
-## Technologies Used
+## Local development
 
-- **Runtime:** Bun
-- **Language:** TypeScript (strict mode)
-- **Web Framework:** ElysiaJS
-- **Validation:** Elysia `t` schemas + Zod (for structured AI outputs)
-- **Database:** PostgreSQL
-- **ORM:** Prisma
-- **File Storage:** S3-compatible storage
-- **AI SDK:** Vercel AI SDK
-- **AI Providers (failover chain):**
-  - Google AI Studio (Gemini)
-  - Groq (Llama models)
-  - OpenRouter (free model routes)
-- **API Documentation:** Swagger (`@elysiajs/swagger`)
-- **Containerization:** Docker / Docker Compose (local PostgreSQL)
+```bash
+cd dapter-backend
+bun install
+cp .env.example .env
+bun run dev
+```
 
-## Architecture
+Required `.env` values:
 
-The backend follows a layered architecture:
+- `POCKETBASE_URL`
+- `AI_PROVIDER=openai`
+- `OPENAI_API_KEY`
 
-- **Controllers:** HTTP handling and request/response validation.
-- **Services:** Business logic (pipeline orchestration, extraction, AI generation).
-- **Repositories:** Isolated database access via Prisma.
-- **Schemas:** Input/output contracts and LLM output validation.
+## Main backend endpoints
+
+- `GET /health`
+- `GET /documents`
+- `POST /documents/upload`
+- `GET /documents/:id/status`
+- `GET /documents/:id/notes`
+- `GET /documents/:id/flashcards`
+- `GET /documents/:id/quizzes`
+- `POST /documents/:id/retry/:stage`
+- `DELETE /documents/:id/forever?target=notes|flashcards|quizzes`
+- `GET /docs`
+
+Protected document routes require:
+
+```http
+Authorization: Bearer <pocketbase-user-token>
+```
+
+## Documentation
+
+- Backend overview: `dapter-backend/docs/01-system-overview.md`
+- Architecture: `dapter-backend/docs/02-architecture.md`
+- Config: `dapter-backend/docs/03-configuration.md`
+- API: `dapter-backend/docs/04-api-reference.md`
+- Data model: `dapter-backend/docs/05-data-model.md`
+- Pipeline: `dapter-backend/docs/06-pipeline-and-failover.md`
+- Local development: `dapter-backend/docs/07-local-development.md`
+- Testing: `dapter-backend/docs/08-testing-and-troubleshooting.md`
+- Logging: `dapter-backend/docs/09-logging.md`
+
+## Tests
+
+```bash
+cd dapter-backend
+bun run test:e2e
+```
