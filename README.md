@@ -54,15 +54,15 @@ Authorization: Bearer <pocketbase-user-token>
 
 ## Documentation
 
-- Backend overview: `dapter-backend/docs/01-system-overview.md`
-- Architecture: `dapter-backend/docs/02-architecture.md`
-- Config: `dapter-backend/docs/03-configuration.md`
-- API: `dapter-backend/docs/04-api-reference.md`
-- Data model: `dapter-backend/docs/05-data-model.md`
-- Pipeline: `dapter-backend/docs/06-pipeline-and-failover.md`
-- Local development: `dapter-backend/docs/07-local-development.md`
-- Testing: `dapter-backend/docs/08-testing-and-troubleshooting.md`
-- Logging: `dapter-backend/docs/09-logging.md`
+- [Backend overview](dapter-backend/docs/01-system-overview.md)
+- [Architecture](dapter-backend/docs/02-architecture.md)
+- [Config](dapter-backend/docs/03-configuration.md)
+- [API](dapter-backend/docs/04-api-reference.md)
+- [Data model](dapter-backend/docs/05-data-model.md)
+- [Pipeline](dapter-backend/docs/06-pipeline-and-failover.md)
+- [Local development](dapter-backend/docs/07-local-development.md)
+- [Testing](dapter-backend/docs/08-testing-and-troubleshooting.md)
+- [Logging](dapter-backend/docs/09-logging.md)
 
 ## Tests
 
