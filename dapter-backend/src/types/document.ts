@@ -17,29 +17,29 @@ export interface LearningArtifactInput {
   flashcardDecks: Array<{
     id: string;
     title: string;
-    description?: string;
+    description?: string | null;
     cards: Array<{
       id: string;
       front: string;
       back: string;
       imagePrompt: string;
-      imageUrls?: string[];
-      tags?: string[];
+      imageUrls?: string[] | null;
+      tags?: string[] | null;
     }>;
   }>;
   quizzes: Array<{
     id: string;
     title: string;
-    description?: string;
+    description?: string | null;
     questions: Array<{
       id: string;
       question: string;
       options: string[];
       correctIndex: number;
-      explanation?: string;
-      tags?: string[];
+      explanation?: string | null;
+      tags?: string[] | null;
       imagePrompt: string;
-      imageUrls?: string[];
+      imageUrls?: string[] | null;
     }>;
   }>;
 }

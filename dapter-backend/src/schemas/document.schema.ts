@@ -145,15 +145,14 @@ export const flashcardDecksPayloadSchema = z.object({
     z.object({
       id: z.string(),
       title: z.string().min(1),
-      description: z.string().optional(),
+      description: z.string().nullable(),
       cards: z.array(
         z.object({
           id: z.string(),
           front: z.string().min(1),
           back: z.string().min(1),
           imagePrompt: z.string().min(1),
-          imageUrls: z.array(z.string().url()).optional(),
-          tags: z.array(z.string()).optional(),
+          tags: z.array(z.string()).nullable(),
         }),
       ).min(1),
     }),
@@ -165,17 +164,16 @@ export const quizzesOnlyPayloadSchema = z.object({
     z.object({
       id: z.string(),
       title: z.string().min(1),
-      description: z.string().optional(),
+      description: z.string().nullable(),
       questions: z.array(
         z.object({
           id: z.string(),
           question: z.string().min(1),
           options: z.array(z.string()).min(2),
           correctIndex: z.number().int().min(0),
-          explanation: z.string().optional(),
-          tags: z.array(z.string()).optional(),
+          explanation: z.string().nullable(),
+          tags: z.array(z.string()).nullable(),
           imagePrompt: z.string().min(1),
-          imageUrls: z.array(z.string().url()).optional(),
         }),
       ).min(1),
     }),

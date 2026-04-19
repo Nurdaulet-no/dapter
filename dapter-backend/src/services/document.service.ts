@@ -103,12 +103,26 @@ export class DocumentService implements IDocumentService {
 
     try {
       await this.generateNotebookStage(documentId, document.fileKey, document.mimeType);
-      await this.generateFlashcardsStage(documentId);
-      await this.generateQuizzesStage(documentId);
-      logger.info("pipeline.process_document.completed", { documentId, status: "COMPLETED" });
     } catch {
-      // stage-level handlers already persist explicit errors/statuses
+      // Notebook is the prerequisite for both downstream stages — cascade failure.
+      await this.repository
+        .markStageFailed(documentId, "flashcards", "Skipped: notebook stage failed")
+        .catch(() => {});
+      await this.repository
+        .markStageFailed(documentId, "quizzes", "Skipped: notebook stage failed")
+        .catch(() => {});
+      return;
     }
+
+    const downstream = await Promise.allSettled([
+      this.generateFlashcardsStage(documentId),
+      this.generateQuizzesStage(documentId),
+    ]);
+    const allOk = downstream.every((r) => r.status === "fulfilled");
+    logger.info("pipeline.process_document.completed", {
+      documentId,
+      status: allOk ? "COMPLETED" : "PARTIAL",
+    });
   }
 
   public async getStatus(documentId: string, userId: string) {

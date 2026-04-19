@@ -53,7 +53,7 @@ export const pocketBaseSchemaMapping: PocketBaseSchemaMapping = {
         { name: "document", type: "relation", required: true, relation: { collection: "documents", maxSelect: 1, cascadeDelete: true } },
         { name: "title", type: "text", required: true },
         { name: "content", type: "text", required: true },
-        { name: "sortOrder", type: "number", required: true, min: 0 },
+        { name: "sortOrder", type: "number", min: 0 },
       ],
     },
     {
@@ -64,7 +64,7 @@ export const pocketBaseSchemaMapping: PocketBaseSchemaMapping = {
         { name: "externalId", type: "text" },
         { name: "title", type: "text", required: true },
         { name: "description", type: "text" },
-        { name: "sortOrder", type: "number", required: true, min: 0 },
+        { name: "sortOrder", type: "number", min: 0 },
       ],
     },
     {
@@ -79,7 +79,7 @@ export const pocketBaseSchemaMapping: PocketBaseSchemaMapping = {
         { name: "imagePrompt", type: "text", required: true },
         { name: "imageUrls", type: "json" },
         { name: "tags", type: "json" },
-        { name: "sortOrder", type: "number", required: true, min: 0 },
+        { name: "sortOrder", type: "number", min: 0 },
       ],
     },
     {
@@ -90,7 +90,7 @@ export const pocketBaseSchemaMapping: PocketBaseSchemaMapping = {
         { name: "externalId", type: "text" },
         { name: "title", type: "text", required: true },
         { name: "description", type: "text" },
-        { name: "sortOrder", type: "number", required: true, min: 0 },
+        { name: "sortOrder", type: "number", min: 0 },
       ],
     },
     {
@@ -107,7 +107,7 @@ export const pocketBaseSchemaMapping: PocketBaseSchemaMapping = {
         { name: "tags", type: "json" },
         { name: "imagePrompt", type: "text", required: true },
         { name: "imageUrls", type: "json" },
-        { name: "sortOrder", type: "number", required: true, min: 0 },
+        { name: "sortOrder", type: "number", min: 0 },
       ],
     },
   ],

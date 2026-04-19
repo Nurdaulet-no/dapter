@@ -1,5 +1,5 @@
 import { createOpenAI } from "@ai-sdk/openai";
-import { generateObject } from "ai";
+import { Output, generateText } from "ai";
 import type { ZodTypeAny } from "zod";
 import { env } from "../../config/env";
 import { logger } from "../../config/logger";
@@ -42,10 +42,10 @@ export class OpenAIProvider implements ILLMProvider {
         attemptTimeoutMs: env.aiProviderAttemptTimeoutMs,
       });
 
-      const { object } = await this.withTimeout(
-        generateObject({
+      const { output } = await this.withTimeout(
+        generateText({
           model: this.openai(this.model),
-          schema: input.schema,
+          output: Output.object({ schema: input.schema }),
           prompt: input.prompt,
           temperature: 0.2,
         }),
@@ -59,7 +59,10 @@ export class OpenAIProvider implements ILLMProvider {
         model: this.model,
       });
 
-      return object as T;
+      if (output === undefined) {
+        throw new Error("OpenAI returned no structured output");
+      }
+      return output as T;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown OpenAI error";
       logger.error("ai.provider.attempt.failed", {
