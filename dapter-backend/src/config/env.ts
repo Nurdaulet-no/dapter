@@ -19,6 +19,8 @@ const frontendBaseUrls = parseOrigins(
 export const env = {
   port: Number(Bun.env.PORT ?? 3000),
   pocketbaseUrl: requireEnv("POCKETBASE_URL"),
+  pocketbaseSuperuserEmail: requireEnv("POCKETBASE_SUPERUSER_EMAIL"),
+  pocketbaseSuperuserPassword: requireEnv("POCKETBASE_SUPERUSER_PASSWORD"),
   aiProvider: "openai",
   openaiApiKey: requireEnv("OPENAI_API_KEY"),
   openaiModel: Bun.env.OPENAI_MODEL ?? "gpt-4.1-mini",

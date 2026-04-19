@@ -5,6 +5,7 @@ import { Elysia } from "elysia";
 import { env } from "./config/env";
 import { AppError } from "./errors/app-error";
 import { logger } from "./config/logger";
+import { ensureSuperuserAuth } from "./config/pocketbase";
 import { createDocumentController } from "./controllers/document.controller";
 import { PocketBaseDocumentRepository } from "./repositories/pocketbase-document.repository";
 import { AIService } from "./services/ai.service";
@@ -94,6 +95,8 @@ const app = new Elysia()
       },
     };
   });
+
+await ensureSuperuserAuth();
 
 app.listen(env.port);
 
