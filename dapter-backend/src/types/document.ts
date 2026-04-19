@@ -48,39 +48,6 @@ export interface DocumentStatusView {
   documentId: string;
   status: PocketBaseDocumentStatus;
   error?: string;
-  notebookStatus: ArtifactStageStatus;
-  notebookError?: string;
-  flashcardsStatus: ArtifactStageStatus;
-  flashcardsError?: string;
-  quizzesStatus: ArtifactStageStatus;
-  quizzesError?: string;
-  notes?: Array<{ id: string; title: string; content: string }>;
-  flashcardDecks?: Array<{
-    id: string;
-    title: string;
-    description?: string;
-    cards: Array<{
-      id: string;
-      front: string;
-      back: string;
-      imageUrls?: string[];
-      tags?: string[];
-    }>;
-  }>;
-  quizzes?: Array<{
-    id: string;
-    title: string;
-    description?: string;
-    questions: Array<{
-      id: string;
-      question: string;
-      options: string[];
-      correctIndex: number;
-      explanation?: string;
-      tags?: string[];
-      imageUrls?: string[];
-    }>;
-  }>;
 }
 
 export interface DocumentListItemView {
@@ -93,17 +60,18 @@ export interface DocumentListItemView {
   updatedAt: string;
 }
 
+export interface DocumentNotesView {
+  documentId: string;
+  status: ArtifactStageStatus;
+  error?: string;
+  notes: Array<{ id: string; title: string; content: string }>;
+}
+
 export interface DocumentFlashcardsView {
   documentId: string;
-  status: PocketBaseDocumentStatus;
+  status: ArtifactStageStatus;
   error?: string;
-  notebookStatus: ArtifactStageStatus;
-  notebookError?: string;
-  flashcardsStatus: ArtifactStageStatus;
-  flashcardsError?: string;
-  quizzesStatus: ArtifactStageStatus;
-  quizzesError?: string;
-  flashcardDecks?: Array<{
+  flashcardDecks: Array<{
     id: string;
     title: string;
     description?: string;
@@ -119,15 +87,9 @@ export interface DocumentFlashcardsView {
 
 export interface DocumentQuizzesView {
   documentId: string;
-  status: PocketBaseDocumentStatus;
+  status: ArtifactStageStatus;
   error?: string;
-  notebookStatus: ArtifactStageStatus;
-  notebookError?: string;
-  flashcardsStatus: ArtifactStageStatus;
-  flashcardsError?: string;
-  quizzesStatus: ArtifactStageStatus;
-  quizzesError?: string;
-  quizzes?: Array<{
+  quizzes: Array<{
     id: string;
     title: string;
     description?: string;
@@ -141,17 +103,4 @@ export interface DocumentQuizzesView {
       imageUrls?: string[];
     }>;
   }>;
-}
-
-export interface DocumentNotesView {
-  documentId: string;
-  status: PocketBaseDocumentStatus;
-  error?: string;
-  notebookStatus: ArtifactStageStatus;
-  notebookError?: string;
-  flashcardsStatus: ArtifactStageStatus;
-  flashcardsError?: string;
-  quizzesStatus: ArtifactStageStatus;
-  quizzesError?: string;
-  notes?: Array<{ id: string; title: string; content: string }>;
 }

@@ -7,7 +7,8 @@
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
     "typecheck": "bun x tsc --noEmit",
-    "test:e2e": "bun run scripts/e2e-endpoints.ts"
+    "test:e2e": "bun run scripts/e2e-endpoints.ts",
+    "setup:db": "bun run scripts/setup-collections.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

@@ -58,54 +58,37 @@ export const documentListResponseSchema = t.Array(
   }),
 );
 
-const stageEnvelopeSchema = {
+export const documentStatusResponseSchema = t.Object({
   documentId: t.String(),
   status: documentStatusSchema,
   error: t.Optional(t.String()),
-  notebookStatus: artifactStageStatusSchema,
-  notebookError: t.Optional(t.String()),
-  flashcardsStatus: artifactStageStatusSchema,
-  flashcardsError: t.Optional(t.String()),
-  quizzesStatus: artifactStageStatusSchema,
-  quizzesError: t.Optional(t.String()),
-};
-
-export const documentStatusResponseSchema = t.Object({
-  ...stageEnvelopeSchema,
-  flashcardDecks: t.Optional(t.Array(flashcardDeckResponseSchema)),
-  notes: t.Optional(
-    t.Array(
-      t.Object({
-        id: t.String(),
-        title: t.String(),
-        content: t.String(),
-      }),
-    ),
-  ),
-  quizzes: t.Optional(t.Array(quizResponseSchema)),
-});
-
-export const documentFlashcardsResponseSchema = t.Object({
-  ...stageEnvelopeSchema,
-  flashcardDecks: t.Optional(t.Array(flashcardDeckResponseSchema)),
-});
-
-export const documentQuizzesResponseSchema = t.Object({
-  ...stageEnvelopeSchema,
-  quizzes: t.Optional(t.Array(quizResponseSchema)),
 });
 
 export const documentNotesResponseSchema = t.Object({
-  ...stageEnvelopeSchema,
-  notes: t.Optional(
-    t.Array(
-      t.Object({
-        id: t.String(),
-        title: t.String(),
-        content: t.String(),
-      }),
-    ),
+  documentId: t.String(),
+  status: artifactStageStatusSchema,
+  error: t.Optional(t.String()),
+  notes: t.Array(
+    t.Object({
+      id: t.String(),
+      title: t.String(),
+      content: t.String(),
+    }),
   ),
+});
+
+export const documentFlashcardsResponseSchema = t.Object({
+  documentId: t.String(),
+  status: artifactStageStatusSchema,
+  error: t.Optional(t.String()),
+  flashcardDecks: t.Array(flashcardDeckResponseSchema),
+});
+
+export const documentQuizzesResponseSchema = t.Object({
+  documentId: t.String(),
+  status: artifactStageStatusSchema,
+  error: t.Optional(t.String()),
+  quizzes: t.Array(quizResponseSchema),
 });
 
 export const flashcardSchema = z.object({

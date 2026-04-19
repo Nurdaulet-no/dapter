@@ -508,28 +508,10 @@ export class PocketBaseDocumentRepository implements IDocumentRepository {
       return null;
     }
 
-    const notes = await this.getNotesRows(id);
-    const [flashcardDecks, quizzes] = await Promise.all([
-      doc.flashcardsStatus === "COMPLETED" ? this.mapFlashcardDecksView(id) : Promise.resolve(undefined),
-      doc.quizzesStatus === "COMPLETED" ? this.mapQuizzesView(id) : Promise.resolve(undefined),
-    ]);
-
     return {
       documentId: doc.id,
       status: doc.status,
       error: doc.error ?? undefined,
-      notebookStatus: doc.notebookStatus,
-      notebookError: doc.notebookError ?? undefined,
-      flashcardsStatus: doc.flashcardsStatus,
-      flashcardsError: doc.flashcardsError ?? undefined,
-      quizzesStatus: doc.quizzesStatus,
-      quizzesError: doc.quizzesError ?? undefined,
-      notes:
-        doc.notebookStatus === "COMPLETED"
-          ? notes.map((item) => ({ id: item.id, title: item.title, content: item.content }))
-          : undefined,
-      flashcardDecks,
-      quizzes,
     };
   }
 
@@ -540,15 +522,9 @@ export class PocketBaseDocumentRepository implements IDocumentRepository {
     }
     return {
       documentId: doc.id,
-      status: doc.status,
-      error: doc.error ?? undefined,
-      notebookStatus: doc.notebookStatus,
-      notebookError: doc.notebookError ?? undefined,
-      flashcardsStatus: doc.flashcardsStatus,
-      flashcardsError: doc.flashcardsError ?? undefined,
-      quizzesStatus: doc.quizzesStatus,
-      quizzesError: doc.quizzesError ?? undefined,
-      flashcardDecks: doc.flashcardsStatus === "COMPLETED" ? await this.mapFlashcardDecksView(id) : undefined,
+      status: doc.flashcardsStatus,
+      error: doc.flashcardsError ?? undefined,
+      flashcardDecks: await this.mapFlashcardDecksView(id),
     };
   }
 
@@ -559,15 +535,9 @@ export class PocketBaseDocumentRepository implements IDocumentRepository {
     }
     return {
       documentId: doc.id,
-      status: doc.status,
-      error: doc.error ?? undefined,
-      notebookStatus: doc.notebookStatus,
-      notebookError: doc.notebookError ?? undefined,
-      flashcardsStatus: doc.flashcardsStatus,
-      flashcardsError: doc.flashcardsError ?? undefined,
-      quizzesStatus: doc.quizzesStatus,
-      quizzesError: doc.quizzesError ?? undefined,
-      quizzes: doc.quizzesStatus === "COMPLETED" ? await this.mapQuizzesView(id) : undefined,
+      status: doc.quizzesStatus,
+      error: doc.quizzesError ?? undefined,
+      quizzes: await this.mapQuizzesView(id),
     };
   }
 
@@ -579,22 +549,13 @@ export class PocketBaseDocumentRepository implements IDocumentRepository {
     const notes = await this.getNotesRows(id);
     return {
       documentId: doc.id,
-      status: doc.status,
-      error: doc.error ?? undefined,
-      notebookStatus: doc.notebookStatus,
-      notebookError: doc.notebookError ?? undefined,
-      flashcardsStatus: doc.flashcardsStatus,
-      flashcardsError: doc.flashcardsError ?? undefined,
-      quizzesStatus: doc.quizzesStatus,
-      quizzesError: doc.quizzesError ?? undefined,
-      notes:
-        doc.notebookStatus === "COMPLETED"
-          ? notes.map((item) => ({
-              id: item.id,
-              title: item.title,
-              content: item.content,
-            }))
-          : undefined,
+      status: doc.notebookStatus,
+      error: doc.notebookError ?? undefined,
+      notes: notes.map((item) => ({
+        id: item.id,
+        title: item.title,
+        content: item.content,
+      })),
     };
   }
 
