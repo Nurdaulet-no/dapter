@@ -87,6 +87,11 @@ function mapField(field: PocketBaseCollectionFieldSpec): Record<string, unknown>
       base.maxSelect = field.relation?.maxSelect ?? null;
       break;
     }
+
+    case "autodate":
+      base.onCreate = field.onCreate ?? false;
+      base.onUpdate = field.onUpdate ?? false;
+      break;
   }
 
   return base;

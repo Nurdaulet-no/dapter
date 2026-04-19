@@ -1,16 +1,19 @@
-import type { ZodTypeAny } from "zod";
+import type { ZodType } from "zod";
 
 export type LLMStage = "notebook" | "flashcards" | "quizzes";
+
+export interface GeneratedImage {
+  bytes: Uint8Array;
+  mediaType: string;
+}
 
 export interface ILLMProvider {
   readonly name: string;
   readonly model: string;
   generateObject<T>(input: {
     stage: LLMStage;
-    schema: ZodTypeAny;
+    schema: ZodType;
     prompt: string;
   }): Promise<T>;
-  generateImageUrls(input: {
-    prompt: string;
-  }): Promise<string[]>;
+  generateImage(input: { prompt: string }): Promise<GeneratedImage>;
 }

@@ -333,12 +333,19 @@ export class DocumentService implements IDocumentService {
         documentId,
       );
       await this.repository.saveFlashcardDecksArtifacts(documentId, flashcardDecks.flashcardDecks);
-      await this.generateFlashcardImagesStage(documentId);
+      // Mark the stage COMPLETED as soon as the cards exist — users can study immediately.
+      // Images are generated in the background and populated per-card as they finish.
       await this.repository.markFlashcardsGenerationCompleted(documentId);
       logger.info("pipeline.stage.completed", {
         documentId,
         stage: "flashcards",
         flashcardDecks: flashcardDecks.flashcardDecks.length,
+      });
+      void this.generateFlashcardImagesStage(documentId).catch((error) => {
+        logger.error("pipeline.images.background.failed", {
+          documentId,
+          message: error instanceof Error ? error.message : "Unknown image-stage error",
+        });
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Flashcards stage failed";
@@ -356,12 +363,53 @@ export class DocumentService implements IDocumentService {
 
   private async generateFlashcardImagesStage(documentId: string): Promise<void> {
     const cards = await this.repository.getFlashcardsForImageGeneration(documentId);
+    if (cards.length === 0) return;
+
+    const startedAt = Date.now();
+    logger.info("pipeline.images.started", {
+      documentId,
+      cardCount: cards.length,
+      concurrency: env.aiImageConcurrency,
+    });
+
+    let succeeded = 0;
+    let failed = 0;
+    const queue = [...cards];
+    const workerCount = Math.min(env.aiImageConcurrency, queue.length);
+
     await Promise.all(
-      cards.map(async (card) => {
-        const imageUrls = await this.llmProvider.generateImageUrls({ prompt: card.imagePrompt });
-        await this.repository.updateFlashcardImageUrls(documentId, card.id, imageUrls);
+      Array.from({ length: workerCount }, async () => {
+        while (queue.length > 0) {
+          const card = queue.shift();
+          if (!card) break;
+          try {
+            const image = await this.llmProvider.generateImage({ prompt: card.imagePrompt });
+            const uploaded = await this.storageService.upload({
+              fileName: `flashcard-${card.id}.png`,
+              mimeType: image.mediaType,
+              body: image.bytes,
+            });
+            await this.repository.updateFlashcardImageUrls(documentId, card.id, [uploaded.fileUrl]);
+            succeeded += 1;
+          } catch (error) {
+            failed += 1;
+            logger.error("pipeline.images.card.failed", {
+              documentId,
+              cardId: card.id,
+              message: error instanceof Error ? error.message : "Unknown image error",
+            });
+          }
+        }
       }),
     );
+
+    logger.info("pipeline.images.completed", {
+      documentId,
+      succeeded,
+      failed,
+      totalCards: cards.length,
+      durationMs: Date.now() - startedAt,
+    });
   }
 
   private async generateQuizzesStage(documentId: string): Promise<void> {

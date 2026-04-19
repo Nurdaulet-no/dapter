@@ -1,4 +1,9 @@
-import type { PocketBaseSchemaMapping } from "../types/pocketbase";
+import type { PocketBaseCollectionFieldSpec, PocketBaseSchemaMapping } from "../types/pocketbase";
+
+const timestampFields: PocketBaseCollectionFieldSpec[] = [
+  { name: "created", type: "autodate", onCreate: true },
+  { name: "updated", type: "autodate", onCreate: true, onUpdate: true },
+];
 
 export const pocketBaseSchemaMapping: PocketBaseSchemaMapping = {
   notes: {
@@ -24,6 +29,7 @@ export const pocketBaseSchemaMapping: PocketBaseSchemaMapping = {
         { name: "fileName", type: "text", required: true },
         { name: "mimeType", type: "text", required: true },
         { name: "size", type: "number", required: true, min: 0 },
+        ...timestampFields,
       ],
     },
     {
@@ -44,6 +50,7 @@ export const pocketBaseSchemaMapping: PocketBaseSchemaMapping = {
         { name: "flashcardsError", type: "text" },
         { name: "quizzesStatus", type: "select", required: true, options: ["PENDING", "PROCESSING", "COMPLETED", "FAILED"] },
         { name: "quizzesError", type: "text" },
+        ...timestampFields,
       ],
     },
     {
@@ -54,6 +61,7 @@ export const pocketBaseSchemaMapping: PocketBaseSchemaMapping = {
         { name: "title", type: "text", required: true },
         { name: "content", type: "text", required: true },
         { name: "sortOrder", type: "number", min: 0 },
+        ...timestampFields,
       ],
     },
     {
@@ -65,6 +73,7 @@ export const pocketBaseSchemaMapping: PocketBaseSchemaMapping = {
         { name: "title", type: "text", required: true },
         { name: "description", type: "text" },
         { name: "sortOrder", type: "number", min: 0 },
+        ...timestampFields,
       ],
     },
     {
@@ -80,6 +89,7 @@ export const pocketBaseSchemaMapping: PocketBaseSchemaMapping = {
         { name: "imageUrls", type: "json" },
         { name: "tags", type: "json" },
         { name: "sortOrder", type: "number", min: 0 },
+        ...timestampFields,
       ],
     },
     {
@@ -91,6 +101,7 @@ export const pocketBaseSchemaMapping: PocketBaseSchemaMapping = {
         { name: "title", type: "text", required: true },
         { name: "description", type: "text" },
         { name: "sortOrder", type: "number", min: 0 },
+        ...timestampFields,
       ],
     },
     {
@@ -108,6 +119,7 @@ export const pocketBaseSchemaMapping: PocketBaseSchemaMapping = {
         { name: "imagePrompt", type: "text", required: true },
         { name: "imageUrls", type: "json" },
         { name: "sortOrder", type: "number", min: 0 },
+        ...timestampFields,
       ],
     },
   ],

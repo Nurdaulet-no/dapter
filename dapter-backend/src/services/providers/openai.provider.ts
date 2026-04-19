@@ -1,9 +1,9 @@
 import { createOpenAI } from "@ai-sdk/openai";
-import { Output, generateText } from "ai";
-import type { ZodTypeAny } from "zod";
+import { Output, experimental_generateImage as generateImage, generateText } from "ai";
+import type { ZodType } from "zod";
 import { env } from "../../config/env";
 import { logger } from "../../config/logger";
-import type { ILLMProvider, LLMStage } from "./provider.interface";
+import type { GeneratedImage, ILLMProvider, LLMStage } from "./provider.interface";
 
 export class OpenAIProvider implements ILLMProvider {
   public readonly name = "openai";
@@ -31,7 +31,7 @@ export class OpenAIProvider implements ILLMProvider {
 
   public async generateObject<T>(input: {
     stage: LLMStage;
-    schema: ZodTypeAny;
+    schema: ZodType;
     prompt: string;
   }): Promise<T> {
     try {
@@ -76,8 +76,38 @@ export class OpenAIProvider implements ILLMProvider {
     }
   }
 
-  public async generateImageUrls(input: { prompt: string }): Promise<string[]> {
-    const encoded = encodeURIComponent(input.prompt.slice(0, 200));
-    return [`https://images.example.local/generated/${encoded}`];
+  public async generateImage(input: { prompt: string }): Promise<GeneratedImage> {
+    const startedAt = Date.now();
+    try {
+      const result = await this.withTimeout(
+        generateImage({
+          model: this.openai.image(this.imageModel),
+          prompt: input.prompt,
+          size: "1024x1024",
+          providerOptions: { openai: { quality: "low" } },
+        }),
+        env.aiImageTimeoutMs,
+        `OpenAI image generation timed out after ${env.aiImageTimeoutMs}ms`,
+      );
+      logger.info("ai.image.generated", {
+        provider: this.name,
+        model: this.imageModel,
+        durationMs: Date.now() - startedAt,
+        bytes: result.image.uint8Array.byteLength,
+      });
+      return {
+        bytes: result.image.uint8Array,
+        mediaType: result.image.mediaType ?? "image/png",
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown image error";
+      logger.error("ai.image.failed", {
+        provider: this.name,
+        model: this.imageModel,
+        durationMs: Date.now() - startedAt,
+        message,
+      });
+      throw error instanceof Error ? error : new Error(message);
+    }
   }
 }

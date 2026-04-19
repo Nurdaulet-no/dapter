@@ -29,5 +29,7 @@ export const env = {
   maxExtractedChars: Number(Bun.env.MAX_EXTRACTED_CHARS ?? 200_000),
   aiProviderAttemptTimeoutMs: Number(Bun.env.AI_PROVIDER_ATTEMPT_TIMEOUT_MS ?? 25_000),
   aiStageTimeoutMs: Number(Bun.env.AI_STAGE_TIMEOUT_MS ?? 120_000),
+  aiImageTimeoutMs: Number(Bun.env.AI_IMAGE_TIMEOUT_MS ?? 60_000),
+  aiImageConcurrency: Number(Bun.env.AI_IMAGE_CONCURRENCY ?? 4),
   frontendBaseUrls,
 };

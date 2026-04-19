@@ -12,6 +12,7 @@ export interface PocketBaseCollectionFieldSpec {
     | "bool"
     | "json"
     | "date"
+    | "autodate"
     | "url"
     | "email"
     | "file"
@@ -27,6 +28,8 @@ export interface PocketBaseCollectionFieldSpec {
     maxSelect?: number;
     cascadeDelete?: boolean;
   };
+  onCreate?: boolean;
+  onUpdate?: boolean;
 }
 
 export interface PocketBaseCollectionSchema {
