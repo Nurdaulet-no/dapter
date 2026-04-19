@@ -273,11 +273,16 @@ export class DocumentService implements IDocumentService {
         fileKey,
         byteLength: bytes.byteLength,
       });
-      const text = await this.extractionService.extractText({ mimeType, bytes });
-      if (text.length > env.maxExtractedChars) {
-        throw new Error(
-          `Extracted text exceeds MAX_EXTRACTED_CHARS=${env.maxExtractedChars}.`,
-        );
+      const rawText = await this.extractionService.extractText({ mimeType, bytes });
+      const wasTruncated = rawText.length > env.maxExtractedChars;
+      const text = wasTruncated ? rawText.slice(0, env.maxExtractedChars) : rawText;
+      if (wasTruncated) {
+        logger.info("pipeline.process_document.extraction.truncated", {
+          documentId,
+          originalLength: rawText.length,
+          truncatedLength: text.length,
+          maxExtractedChars: env.maxExtractedChars,
+        });
       }
       logger.debug("pipeline.process_document.extraction.completed", {
         documentId,
@@ -292,6 +297,13 @@ export class DocumentService implements IDocumentService {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Notebook stage failed";
+      logger.error("pipeline.stage.failed", {
+        documentId,
+        stage: "notebook",
+        message,
+        pbResponse: (error as { response?: unknown })?.response,
+        error,
+      });
       await this.repository.markStageFailed(documentId, "notebook", message);
       throw error;
     }
@@ -316,6 +328,13 @@ export class DocumentService implements IDocumentService {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Flashcards stage failed";
+      logger.error("pipeline.stage.failed", {
+        documentId,
+        stage: "flashcards",
+        message,
+        pbResponse: (error as { response?: unknown })?.response,
+        error,
+      });
       await this.repository.markStageFailed(documentId, "flashcards", message);
       throw error;
     }
@@ -348,6 +367,13 @@ export class DocumentService implements IDocumentService {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Quizzes stage failed";
+      logger.error("pipeline.stage.failed", {
+        documentId,
+        stage: "quizzes",
+        message,
+        pbResponse: (error as { response?: unknown })?.response,
+        error,
+      });
       await this.repository.markStageFailed(documentId, "quizzes", message);
       throw error;
     }

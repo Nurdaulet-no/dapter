@@ -20,6 +20,9 @@ const allowedMimeTypes = new Set([
   "text/markdown",
 ]);
 
+const normalizeMimeType = (value: string): string =>
+  value.split(";")[0]?.trim().toLowerCase() ?? "";
+
 const WINDOW_MS = 60 * 1000;
 const MAX_UPLOADS_PER_MINUTE = 8;
 const uploadRateBuckets = new Map<string, { count: number; resetAt: number }>();
@@ -160,16 +163,19 @@ export const createDocumentController = (documentService: IDocumentService) =>
             });
             return { message: "File is required" };
           }
+          const mimeType = normalizeMimeType(file.type);
           logger.debug("documents.upload.file.metadata", {
             name: file.name,
-            mimeType: file.type,
+            mimeType,
+            rawMimeType: file.type,
             size: file.size,
           });
-          if (!allowedMimeTypes.has(file.type)) {
+          if (!allowedMimeTypes.has(mimeType)) {
             set.status = 400;
             logger.error("documents.upload.validation.failed", {
               reason: "unsupported_mime_type",
-              mimeType: file.type,
+              mimeType,
+              rawMimeType: file.type,
             });
             return { message: "Unsupported file type. Allowed: PDF, PPTX, TXT, MD" };
           }
@@ -190,7 +196,7 @@ export const createDocumentController = (documentService: IDocumentService) =>
           const result = await documentService.uploadAndQueue({
             userId: currentUser.id,
             fileName: file.name,
-            mimeType: file.type,
+            mimeType,
             bytes,
           });
           logger.info("documents.upload.request.queued", {

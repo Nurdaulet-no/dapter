@@ -26,7 +26,7 @@ export const env = {
   openaiModel: Bun.env.OPENAI_MODEL ?? "gpt-4.1-mini",
   openaiImageModel: Bun.env.OPENAI_IMAGE_MODEL ?? "gpt-image-1",
   maxUploadSizeBytes: Number(Bun.env.MAX_UPLOAD_SIZE_BYTES ?? 20 * 1024 * 1024),
-  maxExtractedChars: Number(Bun.env.MAX_EXTRACTED_CHARS ?? 30_000),
+  maxExtractedChars: Number(Bun.env.MAX_EXTRACTED_CHARS ?? 200_000),
   aiProviderAttemptTimeoutMs: Number(Bun.env.AI_PROVIDER_ATTEMPT_TIMEOUT_MS ?? 25_000),
   aiStageTimeoutMs: Number(Bun.env.AI_STAGE_TIMEOUT_MS ?? 120_000),
   frontendBaseUrls,
