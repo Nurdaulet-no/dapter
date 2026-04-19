@@ -220,6 +220,12 @@ export class DocumentService implements IDocumentService {
     ) {
       return "PPTX";
     }
+    if (mimeType === "text/plain") {
+      return "TXT";
+    }
+    if (mimeType === "text/markdown") {
+      return "MD";
+    }
     throw new Error(`Unsupported mime type: ${mimeType}`);
   }
 

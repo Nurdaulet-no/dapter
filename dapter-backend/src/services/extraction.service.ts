@@ -60,6 +60,15 @@ export class ExtractionService implements IExtractionService {
       return this.extractPptxText(input.bytes);
     }
 
+    if (input.mimeType === "text/plain" || input.mimeType === "text/markdown") {
+      const text = new TextDecoder("utf-8").decode(input.bytes).trim();
+      logger.info("extraction.text.completed", {
+        mimeType: input.mimeType,
+        textLength: text.length,
+      });
+      return text;
+    }
+
     logger.error("extraction.unsupported_mime_type", {
       mimeType: input.mimeType,
     });

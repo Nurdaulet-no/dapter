@@ -35,7 +35,7 @@ export const pocketBaseSchemaMapping: PocketBaseSchemaMapping = {
         { name: "mimeType", type: "text", required: true },
         { name: "fileSize", type: "number", required: true, min: 0 },
         { name: "storageFileId", type: "text", required: true },
-        { name: "type", type: "select", required: true, options: ["PDF", "PPTX"] },
+        { name: "type", type: "select", required: true, options: ["PDF", "PPTX", "TXT", "MD"] },
         { name: "status", type: "select", required: true, options: ["PROCESSING", "COMPLETED", "FAILED"] },
         { name: "error", type: "text" },
         { name: "notebookStatus", type: "select", required: true, options: ["PENDING", "PROCESSING", "COMPLETED", "FAILED"] },

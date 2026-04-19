@@ -12,7 +12,9 @@ const parseOrigins = (value: string): string[] =>
     .map((item) => item.trim())
     .filter(Boolean);
 
-const frontendBaseUrls = parseOrigins(Bun.env.FRONTEND_BASE_URLS ?? "http://localhost:3001");
+const frontendBaseUrls = parseOrigins(
+  Bun.env.FRONTEND_BASE_URLS ?? "http://localhost:3001,http://localhost:5173",
+);
 
 export const env = {
   port: Number(Bun.env.PORT ?? 3000),

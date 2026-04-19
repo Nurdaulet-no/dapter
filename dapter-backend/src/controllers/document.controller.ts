@@ -16,6 +16,8 @@ import {
 const allowedMimeTypes = new Set([
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "text/plain",
+  "text/markdown",
 ]);
 
 const WINDOW_MS = 60 * 1000;
@@ -169,7 +171,7 @@ export const createDocumentController = (documentService: IDocumentService) =>
               reason: "unsupported_mime_type",
               mimeType: file.type,
             });
-            return { message: "Unsupported file type. Allowed: PDF, PPTX" };
+            return { message: "Unsupported file type. Allowed: PDF, PPTX, TXT, MD" };
           }
           if (file.size > env.maxUploadSizeBytes) {
             set.status = 400;
