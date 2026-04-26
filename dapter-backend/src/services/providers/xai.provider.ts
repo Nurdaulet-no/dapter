@@ -1,20 +1,20 @@
-import { createOpenAI } from "@ai-sdk/openai";
+import { createXai } from "@ai-sdk/xai";
 import { Output, experimental_generateImage as generateImage, generateText } from "ai";
 import type { ZodType } from "zod";
 import { env } from "../../config/env";
 import { logger } from "../../config/logger";
 import type { GeneratedImage, ILLMProvider, LLMStage } from "./provider.interface";
 
-export class OpenAIProvider implements ILLMProvider {
-  public readonly name = "openai";
+export class XaiProvider implements ILLMProvider {
+  public readonly name = "xai";
   public readonly model: string;
   public readonly imageModel: string;
-  private readonly openai;
+  private readonly xai;
 
   public constructor(input: { apiKey: string; model: string; imageModel: string }) {
     this.model = input.model;
     this.imageModel = input.imageModel;
-    this.openai = createOpenAI({ apiKey: input.apiKey });
+    this.xai = createXai({ apiKey: input.apiKey });
   }
 
   private withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
@@ -40,17 +40,19 @@ export class OpenAIProvider implements ILLMProvider {
         provider: this.name,
         model: this.model,
         attemptTimeoutMs: env.aiProviderAttemptTimeoutMs,
+        maxOutputTokens: env.aiMaxOutputTokens,
       });
 
       const { output } = await this.withTimeout(
         generateText({
-          model: this.openai(this.model),
+          model: this.xai(this.model),
           output: Output.object({ schema: input.schema }),
           prompt: input.prompt,
-          temperature: 0.2,
+          temperature: 0.3,
+          maxOutputTokens: env.aiMaxOutputTokens,
         }),
         env.aiProviderAttemptTimeoutMs,
-        `OpenAI attempt timed out after ${env.aiProviderAttemptTimeoutMs}ms`,
+        `xAI attempt timed out after ${env.aiProviderAttemptTimeoutMs}ms`,
       );
 
       logger.info("ai.provider.attempt.completed", {
@@ -60,11 +62,11 @@ export class OpenAIProvider implements ILLMProvider {
       });
 
       if (output === undefined) {
-        throw new Error("OpenAI returned no structured output");
+        throw new Error("xAI returned no structured output");
       }
       return output as T;
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown OpenAI error";
+      const message = error instanceof Error ? error.message : "Unknown xAI error";
       logger.error("ai.provider.attempt.failed", {
         stage: input.stage,
         provider: this.name,
@@ -72,7 +74,7 @@ export class OpenAIProvider implements ILLMProvider {
         message,
         error,
       });
-      throw new Error(`OpenAI failed for ${input.stage}: ${message}`);
+      throw new Error(`xAI failed for ${input.stage}: ${message}`);
     }
   }
 
@@ -81,13 +83,11 @@ export class OpenAIProvider implements ILLMProvider {
     try {
       const result = await this.withTimeout(
         generateImage({
-          model: this.openai.image(this.imageModel),
+          model: this.xai.image(this.imageModel),
           prompt: input.prompt,
-          size: "1024x1024",
-          providerOptions: { openai: { quality: "low" } },
         }),
         env.aiImageTimeoutMs,
-        `OpenAI image generation timed out after ${env.aiImageTimeoutMs}ms`,
+        `xAI image generation timed out after ${env.aiImageTimeoutMs}ms`,
       );
       logger.info("ai.image.generated", {
         provider: this.name,
