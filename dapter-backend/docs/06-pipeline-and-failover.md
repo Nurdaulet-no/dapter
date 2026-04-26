@@ -12,7 +12,7 @@
    - stage statuses initialized (`PENDING`)
 6. `DocumentService.processDocument(documentId)` starts asynchronously.
 7. `StorageService.download()` downloads source file from storage.
-8. `ExtractionService.extractText()` extracts text (PDF/PPTX).
+8. `ExtractionService.extractText()` extracts text (PDF, PPTX, and TXT).
 9. `AIService.generateNotebook()` creates canonical notebook sections.
 10. Notebook is persisted immediately (`notebookStatus=COMPLETED` on success).
 11. `AIService.generateFlashcardDecksFromNotebook()` creates flashcard decks in one pass, with full card fields (`front`, `back`, `imagePrompt`, optional `tags`, optional `imageUrls`).

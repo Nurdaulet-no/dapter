@@ -25,7 +25,7 @@
 - Do not depend on HTTP context
 - `document.service.ts`: staged document pipeline orchestration, ownership checks, retry
 - `ai.service.ts`: schema-first AI generation via provider abstraction
-- `extraction.service.ts`: PDF/PPTX full-text extraction
+- `extraction.service.ts`: PDF, PPTX, and TXT full-text extraction
 - `storage.service.ts`: PocketBase upload/download/delete
 
 ### Repositories (`src/repositories`)

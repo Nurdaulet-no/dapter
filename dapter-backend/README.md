@@ -1,7 +1,7 @@
 # Dapter Backend API
 
 Production-oriented backend for document transformation pipeline:
-`PDF/PPTX -> extraction -> LLM -> notes/flashcards/quizzes`.
+`PDF/PPTX/TXT -> extraction -> LLM -> notes/flashcards/quizzes`.
 
 ## Stack
 

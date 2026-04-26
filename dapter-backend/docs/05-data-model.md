@@ -20,6 +20,7 @@ Source of truth for runtime contract: `src/config/pocketbase-schema.ts`.
 ### `DocumentType`
 - `PDF`
 - `PPTX`
+- `TXT`
 
 ---
 

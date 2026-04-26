@@ -31,7 +31,7 @@ bun run test:e2e
   - document belongs to another user
 - `FAILED` after upload:
   - PocketBase file storage/read issue
-  - extraction failure
+  - extraction failure (unsupported format or corrupted file)
   - OpenAI key/model/timeout failure
   - PocketBase collection schema mismatch
 - long `PROCESSING`:

@@ -5,7 +5,7 @@
 Backend is optimized for AI document processing:
 
 1. User auth is handled by PocketBase.
-2. API accepts PDF/PPTX uploads.
+2. API accepts PDF, PPTX, and TXT uploads.
 3. Backend runs staged generation pipeline (notebook -> flashcards -> quizzes).
 4. Entities and files are stored in PocketBase.
 

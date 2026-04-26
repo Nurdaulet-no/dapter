@@ -57,7 +57,7 @@ List all documents for the authenticated user.
 
 #### `POST /documents/upload`
 
-Upload a PDF or PPTX file. Triggers async AI processing (notes, flashcards, quizzes).
+Upload a PDF, PPTX, or TXT file. Triggers async AI processing (notes, flashcards, quizzes).
 
 **Rate limit:** 8 uploads/min per user.
 
@@ -65,7 +65,7 @@ Upload a PDF or PPTX file. Triggers async AI processing (notes, flashcards, quiz
 
 | Field  | Type   | Required | Notes                          |
 |--------|--------|----------|--------------------------------|
-| `file` | `File` | Yes      | PDF or PPTX, max 20 MB default |
+| `file` | `File` | Yes      | PDF, PPTX, or TXT; max 20 MB default |
 
 **Allowed MIME types:**
 - `application/pdf`

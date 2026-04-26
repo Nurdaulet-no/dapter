@@ -2,7 +2,7 @@
 
 ## Purpose
 
-**Dapter API** converts unstructured educational files (PDF/PPTX) into structured learning artifacts:
+**Dapter API** converts unstructured educational files (PDF, PPTX, and TXT) into structured learning artifacts:
 
 - Notes
 - Flashcard decks/cards

@@ -27,3 +27,11 @@ bun run dev
 ```bash
 curl -sS http://localhost:3000/health
 ```
+
+## Supported Document Types
+
+- **PDF** (.pdf) — Portable Document Format
+- **PPTX** (.pptx) — PowerPoint presentations  
+- **TXT** (.txt) — Plain text files
+
+Maximum file size: 20 MB (configurable via `MAX_UPLOAD_SIZE_BYTES`)
