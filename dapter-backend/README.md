@@ -1,6 +1,6 @@
 # Dapter Backend
 
-Generates flashcard decks and quizzes from uploaded study material. Each upload (1–5 PDF/PPTX/TXT/MD files) becomes a single `flashcards` row or a single `quizzes` row whose full content lives in a JSON column.
+Generates flashcard decks, quizzes, and Markdown study notes from uploaded study material. Each upload (1–5 PDF/PPTX/TXT/MD files) becomes a single `flashcards`, `quizzes`, or `notes` row whose full content lives in a JSON column.
 
 ## Stack
 
@@ -29,7 +29,7 @@ Provision the PocketBase collections:
 bun run setup:db <admin-email> <admin-password>
 ```
 
-This drops legacy collections (`documents`, `notes`, `flashcard_decks`, `quiz_questions`, plus the previous `flashcards`/`quizzes` shapes) and creates/reconciles `users`, `storage_files`, `flashcards`, `quizzes`.
+This drops genuinely obsolete legacy collections (`documents`, `flashcard_decks`, `quiz_questions`) and creates/reconciles `users`, `storage_files`, `flashcards`, `quizzes`, `notes`. Live collections are never in the drop list, and the setup script has a defensive guard that refuses to drop any collection still defined in the current schema.
 
 Run the server:
 
@@ -48,7 +48,7 @@ Swagger UI: `http://localhost:3000/docs`.
 
 ## Endpoints
 
-All non-`/health` routes require `Authorization: Bearer <pocketbase-user-token>`. There is no `/documents` surface — flashcards and quizzes are top-level, parallel resources.
+All non-`/health` routes require `Authorization: Bearer <pocketbase-user-token>`. There is no `/documents` surface — flashcards, quizzes, and notes are top-level, parallel resources.
 
 ```
 GET    /health
@@ -64,32 +64,38 @@ GET    /quizzes/:id
 GET    /quizzes/:id/status
 POST   /quizzes/:id/retry
 DELETE /quizzes/:id
+GET    /notes/
+POST   /notes/                      multipart, field `files` (1–5 files)
+GET    /notes/:id
+GET    /notes/:id/status
+POST   /notes/:id/retry
+DELETE /notes/:id
 ```
 
-Allowed MIME types: `application/pdf`, `application/vnd.openxmlformats-officedocument.presentationml.presentation`, `text/plain`, `text/markdown`. Default size cap 20 MB per file. Rate limit: 8 uploads/min/user (separate counter is shared across both surfaces — same in-memory bucket keyed by user id).
+Allowed MIME types: `application/pdf`, `application/vnd.openxmlformats-officedocument.presentationml.presentation`, `text/plain`, `text/markdown`. Default size cap 20 MB per file. Rate limit: 8 uploads/min/user (single in-memory bucket keyed by user id, shared across `/flashcards/`, `/quizzes/`, and `/notes/`).
 
 ## Pipeline
 
 1. Validate auth, MIME, size; rate-limit.
 2. Upload each file to `storage_files`.
-3. Insert one `flashcards` (or `quizzes`) row with `status=PROCESSING`, provisional title `Generating: <firstFile> (+N more)`, empty `content`. Return `{ id, status: "PROCESSING" }` immediately.
+3. Insert one `flashcards`, `quizzes`, or `notes` row with `status=PROCESSING`, provisional title `Generating: <firstFile> (+N more)`, empty `content`. Return `{ id, status: "PROCESSING" }` immediately.
 4. Background worker downloads each file, extracts text, concatenates with `--- file: <name> ---` separators, truncates to `MAX_EXTRACTED_CHARS`.
-5. **Single** xAI Grok call against the row's zod payload schema (`flashcardPayloadSchema` or `quizPayloadSchema`). No notebook/intermediate artifact step.
+5. **Single** xAI Grok call against the row's zod payload schema (`flashcardPayloadSchema`, `quizPayloadSchema`, or `notesPayloadSchema`). No notebook/intermediate artifact step.
 6. Persist `title`, `description`, `content`, `status=COMPLETED`.
-7. Flashcards only: an image-generation sub-pipeline runs `AI_IMAGE_CONCURRENCY` workers against the cards' `imagePrompt`s, uploads each PNG to `storage_files`, and writes the URL into the corresponding card's `imageUrls`. A per-row mutex serializes the JSON content patches.
+7. Flashcards only: an image-generation sub-pipeline runs `AI_IMAGE_CONCURRENCY` workers against the cards' `imagePrompt`s, uploads each PNG to `storage_files`, and writes the URL into the corresponding card's `imageUrls`. A per-row mutex serializes the JSON content patches. Quizzes and notes have no image sub-step.
 
 Failures at any stage flip the row to `status=FAILED` and write `error`. `POST /:id/retry` re-runs the pipeline against the existing `docs` files.
 
 ## Layout
 
 ```
-prompts/                          flashcards.system.ts, quizzes.system.ts
+prompts/                          flashcards.system.ts, quizzes.system.ts, notes.system.ts
 src/
   config/                         env, logger, pocketbase client + schema
-  controllers/                    flashcards, quizzes, auth helpers
-  services/                       flashcards, quizzes, ai, extraction, storage,
+  controllers/                    flashcards, quizzes, notes, auth helpers
+  services/                       flashcards, quizzes, notes, ai, extraction, storage,
                                   pipeline-helpers, providers/{xai,factory}
-  repositories/                   flashcards, quizzes (PocketBase adapters)
+  repositories/                   flashcards, quizzes, notes (PocketBase adapters)
   schemas/                        Elysia response + zod LLM payload schemas
   errors/                         AppError
   types/                          row + view shapes

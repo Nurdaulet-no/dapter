@@ -7,17 +7,21 @@ import { AppError } from "./errors/app-error";
 import { logger } from "./config/logger";
 import { ensureSuperuserAuth } from "./config/pocketbase";
 import { createFlashcardsController } from "./controllers/flashcards.controller";
+import { createNotesController } from "./controllers/notes.controller";
 import { createQuizzesController } from "./controllers/quizzes.controller";
 import { PocketBaseFlashcardsRepository } from "./repositories/flashcards.repository";
+import { PocketBaseNotesRepository } from "./repositories/notes.repository";
 import { PocketBaseQuizzesRepository } from "./repositories/quizzes.repository";
 import { AIService } from "./services/ai.service";
 import { ExtractionService } from "./services/extraction.service";
 import { FlashcardsService } from "./services/flashcards.service";
+import { NotesService } from "./services/notes.service";
 import { QuizzesService } from "./services/quizzes.service";
 import { StorageService } from "./services/storage.service";
 
 const flashcardsRepository = new PocketBaseFlashcardsRepository();
 const quizzesRepository = new PocketBaseQuizzesRepository();
+const notesRepository = new PocketBaseNotesRepository();
 const storageService = new StorageService();
 const extractionService = new ExtractionService();
 const aiService = new AIService();
@@ -29,6 +33,12 @@ const flashcardsService = new FlashcardsService(
 );
 const quizzesService = new QuizzesService(
   quizzesRepository,
+  storageService,
+  extractionService,
+  aiService,
+);
+const notesService = new NotesService(
+  notesRepository,
   storageService,
   extractionService,
   aiService,
@@ -76,6 +86,7 @@ const app = new Elysia()
   .get("/health", () => ({ status: "ok" }))
   .use(createFlashcardsController(flashcardsService))
   .use(createQuizzesController(quizzesService))
+  .use(createNotesController(notesService))
   .onError(({ code, error, set }) => {
     logger.error("http.request.failed", {
       code,

@@ -58,7 +58,7 @@ List the caller's flashcards rows (newest first).
 
 Upload 1–5 files and start a flashcards generation pipeline.
 
-**Rate limit:** 8 uploads/min per user (shared with `POST /quizzes/`).
+**Rate limit:** 8 uploads/min per user (single bucket shared with `POST /quizzes/` and `POST /notes/`).
 **Request:** `multipart/form-data` with field `files` (single file or array). Allowed MIME types: `application/pdf`, `application/vnd.openxmlformats-officedocument.presentationml.presentation`, `text/plain`, `text/markdown`. Per-file size cap = `MAX_UPLOAD_SIZE_BYTES`.
 
 **Response 200**
@@ -194,6 +194,102 @@ Identical contracts to the flashcards equivalents.
 
 ---
 
+## Notes (`/notes`)
+
+Mirrors the flashcards and quizzes surfaces. Each notes row is one Markdown study guide generated from 1–5 source files. The full guide lives as a single Markdown string inside the row's `content.markdown` JSON field.
+
+### `GET /notes/`
+
+List the caller's notes rows (newest first).
+
+**Response 200**
+```json
+[
+  {
+    "id": "note1234",
+    "title": "Calculus I — Derivatives",
+    "description": "Definitions, rules, and worked examples.",
+    "status": "COMPLETED",
+    "wordCount": 4321,
+    "createdAt": "2026-04-26T12:00:00.000Z",
+    "updatedAt": "2026-04-26T12:01:30.000Z"
+  }
+]
+```
+
+`description` and `error` are optional. `status` is `PROCESSING | COMPLETED | FAILED`. `wordCount` is computed server-side from the persisted Markdown (0 while still `PROCESSING`).
+
+### `POST /notes/`
+
+Upload 1–5 files and start a notes generation pipeline.
+
+**Rate limit:** 8 uploads/min per user (single bucket shared with `POST /flashcards/` and `POST /quizzes/`).
+**Request:** `multipart/form-data` with field `files` (single file or array). Allowed MIME types: `application/pdf`, `application/vnd.openxmlformats-officedocument.presentationml.presentation`, `text/plain`, `text/markdown`. Per-file size cap = `MAX_UPLOAD_SIZE_BYTES`.
+
+**Response 200**
+```json
+{ "id": "note1234", "status": "PROCESSING" }
+```
+
+**Errors**
+- `400` — no files / >5 files / bad MIME / oversized file
+- `401` — missing or invalid bearer token
+- `429` — rate limit
+- `500` — unexpected upload failure
+
+### `GET /notes/:id`
+
+Full row including the Markdown body.
+
+**Response 200**
+```json
+{
+  "id": "note1234",
+  "title": "Calculus I — Derivatives",
+  "description": "Definitions, rules, and worked examples.",
+  "status": "COMPLETED",
+  "wordCount": 4321,
+  "createdAt": "...",
+  "updatedAt": "...",
+  "markdown": "# Calculus I — Derivatives\n\n## Definition\n\nThe **derivative** of $f$ at $x_0$ is $f'(x_0) = \\lim_{h \\to 0} \\frac{f(x_0+h) - f(x_0)}{h}$ ...\n\n> **Worked example:** Differentiate $f(x) = x^2$ from first principles..."
+}
+```
+
+`description` and `error` are optional. The Markdown body uses H1/H2/H3 headings, **bold** key terms, fenced code blocks, `$...$` inline LaTeX and `$$...$$` display math, GFM tables, and blockquote callouts (`> **Worked example:** ...`, `> **Common pitfall:** ...`, `> **Intuition:** ...`). Volume target is ≥1500 words, typically 3000–6000+.
+
+**Errors:** `401`, `403` (foreign owner), `404`, `500`.
+
+### `GET /notes/:id/status`
+
+Lightweight poll endpoint.
+
+**Response 200**
+```json
+{ "id": "note1234", "status": "PROCESSING" }
+```
+
+`error` is included only on `FAILED`.
+
+### `POST /notes/:id/retry`
+
+Re-run the pipeline against the existing `docs[]` (no re-upload). Flips status back to `PROCESSING` and returns immediately.
+
+**Response 200**
+```json
+{ "id": "note1234", "status": "PROCESSING" }
+```
+
+### `DELETE /notes/:id`
+
+Deletes the notes row. The underlying `storage_files` are **not** cascade-deleted.
+
+**Response 200**
+```json
+{ "success": true }
+```
+
+---
+
 ## Common error envelope
 
 All non-2xx responses follow:
@@ -219,7 +315,7 @@ The Elysia error handler also wraps unknown routes and uncaught errors in:
 ## Typical client flow
 
 1. Authenticate via PocketBase SDK; obtain a user token.
-2. `POST /flashcards/` **or** `POST /quizzes/` (the user picks one path) with the chosen files.
+2. `POST /flashcards/`, `POST /quizzes/`, **or** `POST /notes/` (the user picks one path) with the chosen files.
 3. Poll `GET /:resource/:id/status` until `status` is `COMPLETED` or `FAILED`.
 4. Fetch `GET /:resource/:id` to render. For flashcards, `imageUrls` may keep populating after `COMPLETED` as the image workers finish; re-fetch or poll the detail endpoint to pick up new URLs.
 5. On `FAILED`, optionally `POST /:resource/:id/retry`.

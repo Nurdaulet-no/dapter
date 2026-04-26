@@ -171,7 +171,12 @@ async function createCollection(schema: PocketBaseCollectionSchema) {
 }
 
 async function dropLegacyCollections() {
+  // Defense in depth: if a name is both in the drop list and in the current
+  // schema, NEVER drop it. The schema is the source of truth for what should
+  // exist; the drop list is for purging long-gone names.
+  const schemaNames = new Set(pocketBaseSchemaMapping.collections.map((c) => c.collection));
   for (const name of DROPPED_COLLECTIONS) {
+    if (schemaNames.has(name)) continue;
     const id = collectionIds.get(name);
     if (!id) continue;
     await pb.collections.delete(id);

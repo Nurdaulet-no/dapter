@@ -6,20 +6,20 @@ const timestampFields: PocketBaseCollectionFieldSpec[] = [
 ];
 
 /**
- * Collections that the setup script must hard-delete on every run.
+ * Truly obsolete collection names from earlier architectures. The setup script
+ * deletes any of these that still exist in PocketBase before reconciling the
+ * current schema. Names that ALSO appear in `pocketBaseSchemaMapping.collections`
+ * must NOT be listed here — that would wipe user data on every run.
  *
- * Order matters: cascading FKs from `flashcards` and `quiz_questions` must be
- * removed before their parents (`flashcard_decks`, `quizzes`). The old
- * `flashcards` and `quizzes` tables are also listed because their schema
- * shape changed completely (children → top-level rows with JSON `content`),
- * so we wipe and recreate from scratch.
+ * Note for users upgrading from the very old `documents` architecture: if you
+ * still have a legacy `notes` collection (the old child-of-document `notes`,
+ * not the new top-level Notes), drop it manually in the PocketBase admin
+ * before running `setup:db`. Field types changed (text → json), and the sync
+ * loop does not detect type changes.
  */
 export const DROPPED_COLLECTIONS = [
-  "flashcards",
   "quiz_questions",
   "flashcard_decks",
-  "quizzes",
-  "notes",
   "documents",
 ];
 
@@ -66,6 +66,20 @@ export const pocketBaseSchemaMapping: PocketBaseSchemaMapping = {
     },
     {
       collection: "quizzes",
+      type: "base",
+      fields: [
+        { name: "owner", type: "relation", required: true, relation: { collection: "users", maxSelect: 1 } },
+        { name: "docs", type: "relation", required: true, relation: { collection: "storage_files", maxSelect: 5, cascadeDelete: false } },
+        { name: "title", type: "text", required: true },
+        { name: "description", type: "text" },
+        { name: "content", type: "json", required: true },
+        { name: "status", type: "select", required: true, options: ["PROCESSING", "COMPLETED", "FAILED"] },
+        { name: "error", type: "text" },
+        ...timestampFields,
+      ],
+    },
+    {
+      collection: "notes",
       type: "base",
       fields: [
         { name: "owner", type: "relation", required: true, relation: { collection: "users", maxSelect: 1 } },
