@@ -1,8 +1,4 @@
-export type PocketBaseDocumentStatus = "PROCESSING" | "COMPLETED" | "FAILED";
-
-export type PocketBaseStageStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
-
-export type PocketBaseDocumentType = "PDF" | "PPTX" | "TXT" | "MD";
+export type PocketBaseRowStatus = "PROCESSING" | "COMPLETED" | "FAILED";
 
 export interface PocketBaseCollectionFieldSpec {
   name: string;

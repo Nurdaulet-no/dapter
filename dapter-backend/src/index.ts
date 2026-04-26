@@ -6,19 +6,29 @@ import { env } from "./config/env";
 import { AppError } from "./errors/app-error";
 import { logger } from "./config/logger";
 import { ensureSuperuserAuth } from "./config/pocketbase";
-import { createDocumentController } from "./controllers/document.controller";
-import { PocketBaseDocumentRepository } from "./repositories/pocketbase-document.repository";
+import { createFlashcardsController } from "./controllers/flashcards.controller";
+import { createQuizzesController } from "./controllers/quizzes.controller";
+import { PocketBaseFlashcardsRepository } from "./repositories/flashcards.repository";
+import { PocketBaseQuizzesRepository } from "./repositories/quizzes.repository";
 import { AIService } from "./services/ai.service";
-import { DocumentService } from "./services/document.service";
 import { ExtractionService } from "./services/extraction.service";
+import { FlashcardsService } from "./services/flashcards.service";
+import { QuizzesService } from "./services/quizzes.service";
 import { StorageService } from "./services/storage.service";
 
-const documentRepository = new PocketBaseDocumentRepository();
+const flashcardsRepository = new PocketBaseFlashcardsRepository();
+const quizzesRepository = new PocketBaseQuizzesRepository();
 const storageService = new StorageService();
 const extractionService = new ExtractionService();
 const aiService = new AIService();
-const documentService = new DocumentService(
-  documentRepository,
+const flashcardsService = new FlashcardsService(
+  flashcardsRepository,
+  storageService,
+  extractionService,
+  aiService,
+);
+const quizzesService = new QuizzesService(
+  quizzesRepository,
   storageService,
   extractionService,
   aiService,
@@ -38,7 +48,7 @@ const app = new Elysia()
       documentation: {
         info: {
           title: "Dapter API",
-          version: "1.0.0",
+          version: "2.0.0",
         },
       },
     }),
@@ -64,7 +74,8 @@ const app = new Elysia()
     });
   })
   .get("/health", () => ({ status: "ok" }))
-  .use(createDocumentController(documentService))
+  .use(createFlashcardsController(flashcardsService))
+  .use(createQuizzesController(quizzesService))
   .onError(({ code, error, set }) => {
     logger.error("http.request.failed", {
       code,

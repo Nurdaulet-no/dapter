@@ -5,14 +5,32 @@ const timestampFields: PocketBaseCollectionFieldSpec[] = [
   { name: "updated", type: "autodate", onCreate: true, onUpdate: true },
 ];
 
+/**
+ * Collections that the setup script must hard-delete on every run.
+ *
+ * Order matters: cascading FKs from `flashcards` and `quiz_questions` must be
+ * removed before their parents (`flashcard_decks`, `quizzes`). The old
+ * `flashcards` and `quizzes` tables are also listed because their schema
+ * shape changed completely (children → top-level rows with JSON `content`),
+ * so we wipe and recreate from scratch.
+ */
+export const DROPPED_COLLECTIONS = [
+  "flashcards",
+  "quiz_questions",
+  "flashcard_decks",
+  "quizzes",
+  "notes",
+  "documents",
+];
+
 export const pocketBaseSchemaMapping: PocketBaseSchemaMapping = {
   notes: {
     purpose:
-      "PocketBase schema contract for AI-first backend with notebook -> flashcards/quizzes pipeline.",
+      "Top-level entities are flashcards and quizzes. Each row owns its full content as JSON, with a multi-file `docs` relation to storage_files.",
     compatibility: [
-      "Preserve staged status polling at document level.",
-      "Keep ownership checks via authenticated PocketBase user id.",
-      "Use separate tables for flashcard decks/cards and quizzes/questions.",
+      "Each upload produces exactly one flashcards or quizzes row.",
+      "Children (cards, questions) live inside the row's `content` JSON field.",
+      "Notebook is transient: it is generated in-memory during the pipeline and never persisted.",
     ],
   },
   collections: [
@@ -33,62 +51,16 @@ export const pocketBaseSchemaMapping: PocketBaseSchemaMapping = {
       ],
     },
     {
-      collection: "documents",
-      type: "base",
-      fields: [
-        { name: "owner", type: "relation", required: true, relation: { collection: "users", maxSelect: 1 } },
-        { name: "fileName", type: "text", required: true },
-        { name: "mimeType", type: "text", required: true },
-        { name: "fileSize", type: "number", required: true, min: 0 },
-        { name: "storageFileId", type: "text", required: true },
-        { name: "type", type: "select", required: true, options: ["PDF", "PPTX", "TXT", "MD"] },
-        { name: "status", type: "select", required: true, options: ["PROCESSING", "COMPLETED", "FAILED"] },
-        { name: "error", type: "text" },
-        { name: "notebookStatus", type: "select", required: true, options: ["PENDING", "PROCESSING", "COMPLETED", "FAILED"] },
-        { name: "notebookError", type: "text" },
-        { name: "flashcardsStatus", type: "select", required: true, options: ["PENDING", "PROCESSING", "COMPLETED", "FAILED"] },
-        { name: "flashcardsError", type: "text" },
-        { name: "quizzesStatus", type: "select", required: true, options: ["PENDING", "PROCESSING", "COMPLETED", "FAILED"] },
-        { name: "quizzesError", type: "text" },
-        ...timestampFields,
-      ],
-    },
-    {
-      collection: "notes",
-      type: "base",
-      fields: [
-        { name: "document", type: "relation", required: true, relation: { collection: "documents", maxSelect: 1, cascadeDelete: true } },
-        { name: "title", type: "text", required: true },
-        { name: "content", type: "text", required: true },
-        { name: "sortOrder", type: "number", min: 0 },
-        ...timestampFields,
-      ],
-    },
-    {
-      collection: "flashcard_decks",
-      type: "base",
-      fields: [
-        { name: "document", type: "relation", required: true, relation: { collection: "documents", maxSelect: 1, cascadeDelete: true } },
-        { name: "externalId", type: "text" },
-        { name: "title", type: "text", required: true },
-        { name: "description", type: "text" },
-        { name: "sortOrder", type: "number", min: 0 },
-        ...timestampFields,
-      ],
-    },
-    {
       collection: "flashcards",
       type: "base",
       fields: [
-        { name: "document", type: "relation", required: true, relation: { collection: "documents", maxSelect: 1, cascadeDelete: true } },
-        { name: "deck", type: "relation", required: true, relation: { collection: "flashcard_decks", maxSelect: 1, cascadeDelete: true } },
-        { name: "externalId", type: "text" },
-        { name: "front", type: "text", required: true },
-        { name: "back", type: "text", required: true },
-        { name: "imagePrompt", type: "text", required: true },
-        { name: "imageUrls", type: "json" },
-        { name: "tags", type: "json" },
-        { name: "sortOrder", type: "number", min: 0 },
+        { name: "owner", type: "relation", required: true, relation: { collection: "users", maxSelect: 1 } },
+        { name: "docs", type: "relation", required: true, relation: { collection: "storage_files", maxSelect: 5, cascadeDelete: false } },
+        { name: "title", type: "text", required: true },
+        { name: "description", type: "text" },
+        { name: "content", type: "json", required: true },
+        { name: "status", type: "select", required: true, options: ["PROCESSING", "COMPLETED", "FAILED"] },
+        { name: "error", type: "text" },
         ...timestampFields,
       ],
     },
@@ -96,29 +68,13 @@ export const pocketBaseSchemaMapping: PocketBaseSchemaMapping = {
       collection: "quizzes",
       type: "base",
       fields: [
-        { name: "document", type: "relation", required: true, relation: { collection: "documents", maxSelect: 1, cascadeDelete: true } },
-        { name: "externalId", type: "text" },
+        { name: "owner", type: "relation", required: true, relation: { collection: "users", maxSelect: 1 } },
+        { name: "docs", type: "relation", required: true, relation: { collection: "storage_files", maxSelect: 5, cascadeDelete: false } },
         { name: "title", type: "text", required: true },
         { name: "description", type: "text" },
-        { name: "sortOrder", type: "number", min: 0 },
-        ...timestampFields,
-      ],
-    },
-    {
-      collection: "quiz_questions",
-      type: "base",
-      fields: [
-        { name: "document", type: "relation", required: true, relation: { collection: "documents", maxSelect: 1, cascadeDelete: true } },
-        { name: "quiz", type: "relation", required: true, relation: { collection: "quizzes", maxSelect: 1, cascadeDelete: true } },
-        { name: "externalId", type: "text" },
-        { name: "question", type: "text", required: true },
-        { name: "options", type: "json", required: true },
-        { name: "correctIndex", type: "number", required: true, min: 0 },
-        { name: "explanation", type: "text" },
-        { name: "tags", type: "json" },
-        { name: "imagePrompt", type: "text", required: true },
-        { name: "imageUrls", type: "json" },
-        { name: "sortOrder", type: "number", min: 0 },
+        { name: "content", type: "json", required: true },
+        { name: "status", type: "select", required: true, options: ["PROCESSING", "COMPLETED", "FAILED"] },
+        { name: "error", type: "text" },
         ...timestampFields,
       ],
     },

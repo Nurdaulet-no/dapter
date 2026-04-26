@@ -14,7 +14,7 @@
  */
 
 import PocketBase from "pocketbase";
-import { pocketBaseSchemaMapping } from "../src/config/pocketbase-schema";
+import { DROPPED_COLLECTIONS, pocketBaseSchemaMapping } from "../src/config/pocketbase-schema";
 import type { PocketBaseCollectionFieldSpec, PocketBaseCollectionSchema } from "../src/types/pocketbase";
 
 const POCKETBASE_URL = Bun.env.POCKETBASE_URL ?? "http://127.0.0.1:8090";
@@ -170,9 +170,20 @@ async function createCollection(schema: PocketBaseCollectionSchema) {
   console.log(`  create "${schema.collection}" (${created.id})`);
 }
 
+async function dropLegacyCollections() {
+  for (const name of DROPPED_COLLECTIONS) {
+    const id = collectionIds.get(name);
+    if (!id) continue;
+    await pb.collections.delete(id);
+    collectionIds.delete(name);
+    console.log(`  drop  "${name}" (${id})`);
+  }
+}
+
 async function run() {
   await authenticate();
   await loadExistingCollections();
+  await dropLegacyCollections();
 
   for (const schema of pocketBaseSchemaMapping.collections) {
     const existingId = collectionIds.get(schema.collection);
