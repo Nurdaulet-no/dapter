@@ -1,14 +1,14 @@
-# Dapter Backend API
+# Dapter Backend
 
-Production-oriented backend for document transformation pipeline:
-`PDF/PPTX/TXT -> extraction -> LLM -> notes/flashcards/quizzes`.
+Generates flashcard decks and quizzes from uploaded study material. Each upload (1–5 PDF/PPTX/TXT/MD files) becomes a single `flashcards` row or a single `quizzes` row whose full content lives in a JSON column.
 
 ## Stack
 
 - Bun + TypeScript (strict)
-- ElysiaJS
-- PocketBase (data/auth/file storage)
-- Vercel AI SDK (provider abstraction, OpenAI adapter enabled)
+- ElysiaJS (HTTP, Swagger, CORS)
+- PocketBase (auth, persistence, file storage)
+- Vercel AI SDK with the xAI Grok adapter (`@ai-sdk/xai`)
+- `pdf-parse`, `jszip` + `fast-xml-parser` for extraction
 
 ## Local setup
 
@@ -17,95 +17,92 @@ bun install
 cp .env.example .env
 ```
 
-Set required values in `.env`.
+Fill in at least:
 
-Required minimum:
-- `POCKETBASE_URL`
-- `AI_PROVIDER=openai`
-- `OPENAI_API_KEY`
-- valid PocketBase auth tokens for clients (handled by PocketBase)
+- `POCKETBASE_URL`, `POCKETBASE_SUPERUSER_EMAIL`, `POCKETBASE_SUPERUSER_PASSWORD`
+- `XAI_API_KEY` (optionally `XAI_MODEL`, `XAI_IMAGE_MODEL`)
+- `FRONTEND_BASE_URLS` (CORS allowlist)
 
-## Full local backend startup
-
-1. Install dependencies:
+Provision the PocketBase collections:
 
 ```bash
-bun install
+bun run setup:db <admin-email> <admin-password>
 ```
 
-2. Configure environment:
+This drops legacy collections (`documents`, `notes`, `flashcard_decks`, `quiz_questions`, plus the previous `flashcards`/`quizzes` shapes) and creates/reconciles `users`, `storage_files`, `flashcards`, `quizzes`.
 
-```bash
-cp .env.example .env
-```
-
-Update at least:
-
-- `POCKETBASE_URL`
-- `AI_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL`
-- `MAX_UPLOAD_SIZE_BYTES`, `MAX_EXTRACTED_CHARS`
-- `AI_PROVIDER_ATTEMPT_TIMEOUT_MS`
-- `AI_STAGE_TIMEOUT_MS`
-
-3. Start PocketBase locally (default URL `http://127.0.0.1:8090`) and create required collections.
-
-4. Run backend:
+Run the server:
 
 ```bash
 bun run dev
 ```
-To test backend u can use script e2e-endpoints.ts which runs through all endpoints in sequence
-```bash
-bun run test:e2e
-```
 
-5. Verify API is alive:
+Verify:
 
 ```bash
 curl -sS http://localhost:3000/health
+# {"status":"ok"}
 ```
 
-Expected:
+Swagger UI: `http://localhost:3000/docs`.
 
-```json
-{"status":"ok"}
+## Endpoints
+
+All non-`/health` routes require `Authorization: Bearer <pocketbase-user-token>`. There is no `/documents` surface — flashcards and quizzes are top-level, parallel resources.
+
+```
+GET    /health
+GET    /flashcards/
+POST   /flashcards/                 multipart, field `files` (1–5 files)
+GET    /flashcards/:id
+GET    /flashcards/:id/status
+POST   /flashcards/:id/retry
+DELETE /flashcards/:id
+GET    /quizzes/
+POST   /quizzes/                    multipart, field `files` (1–5 files)
+GET    /quizzes/:id
+GET    /quizzes/:id/status
+POST   /quizzes/:id/retry
+DELETE /quizzes/:id
 ```
 
-Open Swagger docs at `http://localhost:3000/docs`.
+Allowed MIME types: `application/pdf`, `application/vnd.openxmlformats-officedocument.presentationml.presentation`, `text/plain`, `text/markdown`. Default size cap 20 MB per file. Rate limit: 8 uploads/min/user (separate counter is shared across both surfaces — same in-memory bucket keyed by user id).
 
-## Run
+## Pipeline
 
-```bash
-bun run dev
+1. Validate auth, MIME, size; rate-limit.
+2. Upload each file to `storage_files`.
+3. Insert one `flashcards` (or `quizzes`) row with `status=PROCESSING`, provisional title `Generating: <firstFile> (+N more)`, empty `content`. Return `{ id, status: "PROCESSING" }` immediately.
+4. Background worker downloads each file, extracts text, concatenates with `--- file: <name> ---` separators, truncates to `MAX_EXTRACTED_CHARS`.
+5. **Single** xAI Grok call against the row's zod payload schema (`flashcardPayloadSchema` or `quizPayloadSchema`). No notebook/intermediate artifact step.
+6. Persist `title`, `description`, `content`, `status=COMPLETED`.
+7. Flashcards only: an image-generation sub-pipeline runs `AI_IMAGE_CONCURRENCY` workers against the cards' `imagePrompt`s, uploads each PNG to `storage_files`, and writes the URL into the corresponding card's `imageUrls`. A per-row mutex serializes the JSON content patches.
+
+Failures at any stage flip the row to `status=FAILED` and write `error`. `POST /:id/retry` re-runs the pipeline against the existing `docs` files.
+
+## Layout
+
+```
+prompts/                          flashcards.system.ts, quizzes.system.ts
+src/
+  config/                         env, logger, pocketbase client + schema
+  controllers/                    flashcards, quizzes, auth helpers
+  services/                       flashcards, quizzes, ai, extraction, storage,
+                                  pipeline-helpers, providers/{xai,factory}
+  repositories/                   flashcards, quizzes (PocketBase adapters)
+  schemas/                        Elysia response + zod LLM payload schemas
+  errors/                         AppError
+  types/                          row + view shapes
+  index.ts                        wiring + Elysia bootstrap
+scripts/                          setup-collections.ts, e2e-endpoints.ts
 ```
 
-Server endpoints:
+## Scripts
 
-- `GET /health`
-- `GET /documents` (requires PocketBase Bearer token)
-- `POST /documents/upload` (multipart form-data, field `file`)
-- `GET /documents/:id/status` (requires PocketBase Bearer token)
-- `GET /documents/:id/flashcards` (requires PocketBase Bearer token)
-- `GET /documents/:id/quizzes` (requires PocketBase Bearer token)
-- `GET /documents/:id/notes` (requires PocketBase Bearer token)
-- `DELETE /documents/:id/forever?target=notes|flashcards|quizzes` (requires PocketBase Bearer token)
-- `GET /docs` (Swagger)
+- `bun run dev` — watch mode.
+- `bun run start` — one-shot run.
+- `bun run typecheck` — strict TS.
+- `bun run setup:db <email> <password>` — create/reconcile collections.
+- `bun run test:e2e` — end-to-end exercise of the live API.
 
-AI processing is staged notebook-first:
-
-- Stage 1: structured notes (notebook) from extracted text
-- Stage 2: flashcard decks generated from notebook content in one pass (`front`, `back`, `imagePrompt`, optional tags/imageUrls)
-- Stage 2b: image generation is executed before exposing flashcards
-- Stage 3: quizzes generated from notebook content
-
-Data model split:
-
-- flashcards: `flashcard_decks` + `flashcards`
-- quizzes: `quizzes` + `quiz_questions`
-
-## Architecture
-
-- `src/controllers`: HTTP layer only
-- `src/services`: business logic and pipeline orchestration
-- `src/repositories`: repository interfaces + PocketBase adapters
-- `src/schemas`: input/output/LLM validation schemas
+See `docs/` for the full reference.

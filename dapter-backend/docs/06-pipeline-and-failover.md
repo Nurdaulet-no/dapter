@@ -1,75 +1,57 @@
 # 6. Processing Pipeline and AI Runtime
 
-## Document Processing Pipeline
+## Per-upload pipeline
 
-1. Client authenticates and sends Bearer access token.
-2. `POST /documents/upload` receives file from authenticated user.
-3. Controller validates MIME/size/page limits and upload rate limits.
-4. `StorageService.upload()` stores file in PocketBase file storage (`storage_files` collection).
-5. `DocumentRepository.createDocument()` creates `Document` with:
-   - `PROCESSING` status
-   - owner binding
-   - stage statuses initialized (`PENDING`)
-6. `DocumentService.processDocument(documentId)` starts asynchronously.
-7. `StorageService.download()` downloads source file from storage.
-8. `ExtractionService.extractText()` extracts text (PDF, PPTX, and TXT).
-9. `AIService.generateNotebook()` creates canonical notebook sections.
-10. Notebook is persisted immediately (`notebookStatus=COMPLETED` on success).
-11. `AIService.generateFlashcardDecksFromNotebook()` creates flashcard decks in one pass, with full card fields (`front`, `back`, `imagePrompt`, optional `tags`, optional `imageUrls`).
-12. Backend runs stage-2 image generation for every card using an internal per-card image prompt and writes `imageUrls`.
-13. Only after step 12 completes, `flashcardsStatus` is marked `COMPLETED` and flashcards become visible via API.
-14. `AIService.generateQuizzesFromNotebook()` creates quizzes in one pass, including questions with `correctIndex`, optional tags/imageUrls, and `imagePrompt`.
-15. Document is marked `COMPLETED` when notebook + flashcards + quizzes are completed.
-16. If a core stage fails, document status is marked `FAILED`.
+Triggered by `POST /flashcards/` or `POST /quizzes/`. The two services are structurally identical (`flashcards.service.ts` / `quizzes.service.ts`); they diverge only in (a) which AI method they call and (b) flashcards' image sub-pipeline.
 
-## Key product guarantees
+1. **Validate.** Controller checks bearer token (`resolveCurrentUserId`), upload rate limit (8/min/user), file count (1–5), MIME type (`allowedMimeTypes`), and per-file size (`MAX_UPLOAD_SIZE_BYTES`). Each file's bytes are read into memory.
+2. **Upload sources.** Service uploads each file to `storage_files`, collecting `fileKey`s into `docs[]` and matching `{ fileKey, fileName, mimeType }` triples for the pipeline.
+3. **Insert row.** Repository creates one `flashcards` (or `quizzes`) row with provisional title (`buildProvisionalTitle`), `content: { cards: [] }` (or `{ questions: [] }`), `status: "PROCESSING"`. The id is returned to the client immediately.
+4. **Background pipeline** (`runPipeline`, fire-and-forget):
+   1. **Download + extract.** `extractCombinedText` downloads each file, runs `ExtractionService.extractText`, truncates each per-file output to `MAX_EXTRACTED_CHARS`, joins with `--- file: <name> ---` separators, and truncates the joined string to `MAX_EXTRACTED_CHARS` again.
+      - PDF → `pdf-parse` (page-aware text reassembly).
+      - PPTX → `JSZip` + `fast-xml-parser` walking each `ppt/slides/slideN.xml`.
+      - TXT/MD → UTF-8 decode.
+   2. **LLM call.** `runWithStageTimeout(stage, rowId, ...)` wraps `aiService.generateFlashcardDeck(text)` or `generateQuiz(text)` in a `Promise.race` against `AI_STAGE_TIMEOUT_MS`. The provider call is also bounded by `AI_PROVIDER_ATTEMPT_TIMEOUT_MS` internally.
+   3. **Persist.** `repository.saveCompletedContent(id, { title, description, cards|questions })` atomically writes `title`, `description`, `content`, `status=COMPLETED`, `error=null`. For flashcards this goes through the per-row mutex so it can't interleave with image patches.
+5. **Image sub-pipeline (flashcards only).** `generateImages(id, cards)`:
+   - Builds a queue of cards.
+   - Spawns `min(AI_IMAGE_CONCURRENCY, queue.length)` workers.
+   - Each worker pops a card, calls `provider.generateImage({ prompt: card.imagePrompt })` (bounded by `AI_IMAGE_TIMEOUT_MS`), uploads the PNG bytes to `storage_files` with name `flashcard-<cardId>.png`, then calls `repository.updateCardImageUrls(id, cardId, [fileUrl])`. The repository acquires the row mutex, re-reads the row, patches the card's `imageUrls`, and writes the whole `content` back.
+   - Failures on a single image are logged (`flashcards.images.card.failed`) and skipped — the row stays `COMPLETED`. There is currently no quiz image sub-pipeline.
+6. **Failure handling.** Any throw in `runPipeline` is caught and routed to `repository.markFailed(id, message)`, flipping `status=FAILED` and writing `error`. Background errors that escape `runPipeline` are logged as `flashcards.pipeline.unhandled` / `quizzes.pipeline.unhandled` but the row state has already been updated.
 
-- Flashcards are hidden until image generation is completed for generated cards.
-- Flashcards and quizzes are persisted in separate tables:
-  - `flashcard_decks` + `flashcards`
-  - `quizzes` + `quiz_questions`
-- Deprecated flashcard metadata fields are removed:
-  - `requiresPointer`
-  - `visualNeedScore`
-  - `pointerX`
-  - `pointerY`
-  - `topic`
-  - `iconKey`
+## Retry
 
-## Limits and validation
+`POST /:resource/:id/retry`:
 
-- Upload rejects files larger than `MAX_UPLOAD_SIZE_BYTES`.
-- Processing fails when extracted text exceeds `MAX_EXTRACTED_CHARS`.
-- Errors are explicit and surface precise reason.
+1. Verify ownership (`getById(id, ownerId)`).
+2. `markProcessing(id)` (clears `error`).
+3. Resolve `docs[]` back into `{ fileKey, fileName, mimeType }` triples by re-fetching each `storage_files` record.
+4. Re-run `runPipeline` against those sources.
 
-## Stage status fields exposed to frontend
+The original LLM output is replaced wholesale; partial recovery is not attempted.
 
-- `notebookStatus` / `notebookError`
-- `flashcardsStatus` / `flashcardsError`
-- `quizzesStatus` / `quizzesError`
+## LLM contract
 
-## Ownership and access control
+- **Provider.** xAI Grok via `@ai-sdk/xai`. `XAI_MODEL` for text/structured-object output; `XAI_IMAGE_MODEL` for images.
+- **Call shape.** `generateText` from `ai` with `Output.object({ schema })`, `temperature: 0.3`, `maxOutputTokens: AI_MAX_OUTPUT_TOKENS`. The schema (`flashcardPayloadSchema` / `quizPayloadSchema`) is a zod object; per-field guidance lives on each `.describe()`.
+- **Prompt assembly.** `[<system prompt>, "", "SOURCE:\n" + text.slice(0, MAX_EXTRACTED_CHARS)].join("\n")`. The system prompts live in `prompts/flashcards.system.ts` and `prompts/quizzes.system.ts`.
+- **Validation.** AI SDK enforces the zod schema. The flashcards schema requires ≥40 cards; the quizzes schema requires ≥30 questions and ≥4 options per question.
+- **Failure modes.**
+  - Provider error / timeout → `xAI failed for <stage>: <message>` thrown out of `generateObject`.
+  - Schema validation failure → SDK throws; the service catches it and marks the row failed.
+  - Empty / too-short source text (<80 chars after extraction) → `aiService` throws before calling the provider.
 
-- All document retrieval endpoints are protected.
-- Service/repository enforce ownership checks:
-  - foreign document access -> `403`
-  - missing document -> `404`
-- Artifact deletion is owner-only and target-based via
-  `DELETE /documents/:id/forever?target=notes|flashcards|quizzes`.
+## Limits and ownership
 
-## AI runtime (provider abstraction)
+- File count: 1–5 per upload, enforced at the controller and by the `storage_files` relation `maxSelect: 5`.
+- File size: `MAX_UPLOAD_SIZE_BYTES` (controller) + `25 MB` collection cap on `storage_files.file`.
+- Source text: capped at `MAX_EXTRACTED_CHARS` per file and again on the joined string.
+- Ownership: services use `assertOwnershipOrThrow` to differentiate `404` (no such row) from `403` (row exists but `owner` ≠ caller).
 
-AI generation is configured via:
+## What's intentionally NOT here
 
-- `AI_PROVIDER` (currently `openai`)
-- `OPENAI_API_KEY`
-- `OPENAI_MODEL`
-- `AI_PROVIDER_ATTEMPT_TIMEOUT_MS`
-
-Logic:
-
-1. The request is sent through provider factory (`AI_PROVIDER`).
-2. Current runtime implementation uses OpenAI provider adapter.
-3. Model call uses `OPENAI_MODEL`.
-4. Attempt is bounded by `AI_PROVIDER_ATTEMPT_TIMEOUT_MS`.
-5. On timeout/provider error, stage fails explicitly.
+- No notebook / intermediate stage. Extraction → LLM is direct.
+- No soft delete or trash.
+- No multi-stage status (no `notebookStatus`, `flashcardsStatus`, etc.). The single row-level `status` is the only signal.

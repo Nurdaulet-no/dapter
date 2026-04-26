@@ -1,43 +1,87 @@
 # 9. Logging
 
-The backend uses structured JSON logs (`src/config/logger.ts`):
+`src/config/logger.ts` writes one JSON object per `console.log` line with shape:
 
-- `ts`
-- `level` (`INFO` / `DEBUG` / `ERROR`)
-- `message`
-- `context`
+```json
+{
+  "ts": "2026-04-26T12:00:00.000Z",
+  "level": "INFO" | "DEBUG" | "ERROR",
+  "message": "<event-name>",
+  "context": { ... }
+}
+```
 
-This makes filtering and root-cause analysis easier.
+`logger.error` runs `error`-typed context values through a serializer so `Error` instances are logged as `{ name, message, stack }`.
 
-## Where to Find Logging Points
+## Event catalog
 
-Complete map of all added logging points:
+### HTTP lifecycle (`src/index.ts`)
+- `http.request.received` — `requestId`, `ip`, `method`, `path`.
+- `http.request.completed` — `method`, `path`, `status`.
+- `http.request.failed` — `code`, `status`, `error`.
+- `server.started` — `port`.
 
-- [`../LOGGING_POINTS.md`](../LOGGING_POINTS.md)
+### Flashcards pipeline (`src/services/flashcards.service.ts`)
+- `flashcards.upload_and_queue.started`
+- `flashcards.row.created`
+- `flashcards.pipeline.completed`
+- `flashcards.pipeline.failed`
+- `flashcards.pipeline.unhandled`
+- `flashcards.pipeline.retry.unhandled`
+- `flashcards.upload.queued` *(controller)*
+- `flashcards.images.started`
+- `flashcards.images.completed`
+- `flashcards.images.card.failed`
+- `flashcards.images.background.failed`
 
-## Key Events
+### Quizzes pipeline (`src/services/quizzes.service.ts`)
+- `quizzes.upload_and_queue.started`
+- `quizzes.row.created`
+- `quizzes.pipeline.completed`
+- `quizzes.pipeline.failed`
+- `quizzes.pipeline.unhandled`
+- `quizzes.pipeline.retry.unhandled`
+- `quizzes.upload.queued` *(controller)*
 
-- HTTP lifecycle:
-  - `http.request.received`
-  - `http.request.completed`
-  - `http.request.failed`
-- Pipeline:
-  - `pipeline.upload_and_queue.started`
-  - `pipeline.background_processing.triggered`
-  - `pipeline.process_document.started`
-  - `pipeline.stage.started`
-  - `pipeline.stage.completed`
-  - `pipeline.stage.finished`
-  - `pipeline.stage.retry.failed`
-  - `pipeline.process_document.completed`
-  - `pipeline.process_document.failed`
-  - `pipeline.status_lookup.started`
-  - `pipeline.flashcards_lookup.started`
-  - `pipeline.quizzes_lookup.started`
-  - `pipeline.notes_lookup.started`
-- AI runtime:
-  - `ai.generation.started`
-  - `ai.generation.failed`
-  - `ai.provider.attempt.started`
-  - `ai.provider.attempt.failed`
-  - `ai.provider.attempt.completed`
+### Pipeline helpers (`src/services/pipeline-helpers.ts`)
+- `pipeline.source.downloaded`
+- `pipeline.stage.started`
+- `pipeline.stage.finished`
+
+### Extraction (`src/services/extraction.service.ts`)
+- `extraction.started`
+- `extraction.pdf.completed`
+- `extraction.pptx.detected`
+- `extraction.pptx.slides.discovered`
+- `extraction.pptx.slide.read_failed`
+- `extraction.pptx.completed`
+- `extraction.text.completed`
+- `extraction.unsupported_mime_type`
+
+### AI service (`src/services/ai.service.ts`)
+- `ai.flashcards.generation.started`
+- `ai.quizzes.generation.started`
+
+### xAI provider (`src/services/providers/xai.provider.ts`)
+- `ai.provider.attempt.started`
+- `ai.provider.attempt.completed`
+- `ai.provider.attempt.failed`
+- `ai.image.generated`
+- `ai.image.failed`
+
+### Storage (`src/services/storage.service.ts`)
+- `storage.upload.started`
+- `storage.upload.completed`
+- `storage.download.started`
+- `storage.download.completed`
+- `storage.download.failed`
+- `storage.delete.started`
+- `storage.delete.completed`
+- `storage.delete.object_missing`
+
+## Useful filters
+
+- One request: filter by `context.requestId`.
+- One row's full lifecycle: filter by `context.id` (matches `flashcards.*`, `quizzes.*`, `pipeline.stage.*`).
+- AI calls: filter `message` starting with `ai.`.
+- Extraction issues: filter `message` starting with `extraction.`.

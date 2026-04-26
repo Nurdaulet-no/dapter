@@ -7,267 +7,220 @@
 
 ## Authentication
 
-All `/documents/*` endpoints require a PocketBase user token:
+All non-health endpoints require a PocketBase user token:
 
 ```
 Authorization: Bearer <pocketbase-user-token>
 ```
 
-Auth (login/register) is handled directly by PocketBase at `http://localhost:8090`.
+Login/register is handled directly against the PocketBase instance (default `http://localhost:8090`). The backend exposes no auth routes; it only validates the token via `users.authRefresh`.
 
 ---
 
-## Endpoints
+## Health
 
-### Health Check
+### `GET /health`
 
-#### `GET /health`
+No auth.
 
-No auth required.
-
-**Response `200`**
 ```json
 { "status": "ok" }
 ```
 
 ---
 
-### Documents
+## Flashcards (`/flashcards`)
 
-#### `GET /documents/`
+A flashcards row is one independent deck generated from 1–5 source files. Cards live inside the row's `content` JSON.
 
-List all documents for the authenticated user.
+### `GET /flashcards/`
 
-**Response `200`**
+List the caller's flashcards rows (newest first).
+
+**Response 200**
 ```json
 [
   {
-    "documentId": "abc123",
-    "fileName": "lecture.pdf",
-    "mimeType": "application/pdf",
-    "fileSize": 1048576,
-    "status": "PROCESSING" | "COMPLETED" | "FAILED",
-    "createdAt": "2026-04-19T12:00:00Z",
-    "updatedAt": "2026-04-19T12:01:00Z"
+    "id": "abcd1234",
+    "title": "Calculus I — Derivatives",
+    "description": "Definitions, rules, and worked examples.",
+    "status": "COMPLETED",
+    "cardCount": 72,
+    "createdAt": "2026-04-26T12:00:00.000Z",
+    "updatedAt": "2026-04-26T12:01:30.000Z"
   }
 ]
 ```
 
----
+`description` and `error` are optional. `status` is `PROCESSING | COMPLETED | FAILED`.
 
-#### `POST /documents/upload`
+### `POST /flashcards/`
 
-Upload a PDF, PPTX, or TXT file. Triggers async AI processing (notes, flashcards, quizzes).
+Upload 1–5 files and start a flashcards generation pipeline.
 
-**Rate limit:** 8 uploads/min per user.
+**Rate limit:** 8 uploads/min per user (shared with `POST /quizzes/`).
+**Request:** `multipart/form-data` with field `files` (single file or array). Allowed MIME types: `application/pdf`, `application/vnd.openxmlformats-officedocument.presentationml.presentation`, `text/plain`, `text/markdown`. Per-file size cap = `MAX_UPLOAD_SIZE_BYTES`.
 
-**Request** — `multipart/form-data`
-
-| Field  | Type   | Required | Notes                          |
-|--------|--------|----------|--------------------------------|
-| `file` | `File` | Yes      | PDF, PPTX, or TXT; max 20 MB default |
-
-**Allowed MIME types:**
-- `application/pdf`
-- `application/vnd.openxmlformats-officedocument.presentationml.presentation`
-
-**Response `200`**
+**Response 200**
 ```json
-{
-  "documentId": "abc123",
-  "status": "PROCESSING"
-}
+{ "id": "abcd1234", "status": "PROCESSING" }
 ```
 
-**Errors:**
-- `400` — missing file, unsupported type, or exceeds size limit
-- `429` — `{ "message": "Too many uploads. Please retry later." }`
+**Errors**
+- `400` — no files / >5 files / bad MIME / oversized file
+- `401` — missing or invalid bearer token
+- `429` — rate limit
+- `500` — unexpected upload failure
 
----
+### `GET /flashcards/:id`
 
-#### `GET /documents/:id/status`
+Full row including all cards.
 
-Poll the processing status of a document. Returns statuses only, no artifact data.
-
-**Path params:** `id` — document ID
-
-**Response `200`**
+**Response 200**
 ```json
 {
-  "documentId": "abc123",
-  "status": "PROCESSING" | "COMPLETED" | "FAILED",
-  "error": "..."
-}
-```
-
-> `error` appears only on failure.
-
-**Errors:**
-- `403` — document belongs to another user
-- `404` — document not found
-
----
-
-#### `GET /documents/:id/notes`
-
-Retrieve notes for a document.
-
-**Path params:** `id` — document ID
-
-**Response `200`**
-```json
-{
-  "documentId": "abc123",
-  "status": "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED",
-  "error": "...",
-  "notes": [
+  "id": "abcd1234",
+  "title": "Calculus I — Derivatives",
+  "description": "...",
+  "status": "COMPLETED",
+  "cardCount": 72,
+  "createdAt": "...",
+  "updatedAt": "...",
+  "cards": [
     {
-      "id": "note1",
-      "title": "Chapter 1",
-      "content": "Markdown content..."
+      "id": "card-derivative-defn",
+      "front": "Define the derivative of $f$ at $x_0$.",
+      "back": "$f'(x_0) = \\lim_{h\\to 0} \\frac{f(x_0+h)-f(x_0)}{h}$ when the limit exists.",
+      "imageUrls": ["https://.../abcd-card-derivative-defn.png"],
+      "tags": ["calculus", "derivative"]
     }
   ]
 }
 ```
 
----
+`imageUrls` is omitted for cards whose image hasn't landed yet (image-gen runs after the deck content is persisted, so a row may be `COMPLETED` while images are still streaming in). `tags` is omitted when empty.
 
-#### `GET /documents/:id/flashcards`
+**Errors:** `401`, `403` (foreign owner), `404`, `500`.
 
-Retrieve flashcard decks for a document.
+### `GET /flashcards/:id/status`
 
-**Path params:** `id` — document ID
+Lightweight poll endpoint.
 
-**Response `200`**
+**Response 200**
 ```json
-{
-  "documentId": "abc123",
-  "status": "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED",
-  "error": "...",
-  "flashcardDecks": [
-    {
-      "id": "deck1",
-      "title": "Key Concepts",
-      "description": "...",
-      "cards": [
-        {
-          "id": "card1",
-          "front": "What is X?",
-          "back": "X is...",
-          "imageUrls": ["https://..."],
-          "tags": ["chapter1"]
-        }
-      ]
-    }
-  ]
-}
+{ "id": "abcd1234", "status": "PROCESSING" }
 ```
 
----
+`error` is included only on `FAILED`.
 
-#### `GET /documents/:id/quizzes`
+### `POST /flashcards/:id/retry`
 
-Retrieve quizzes for a document.
+Re-run the pipeline against the existing `docs[]` (no re-upload). Flips status back to `PROCESSING` and returns immediately.
 
-**Path params:** `id` — document ID
-
-**Response `200`**
+**Response 200**
 ```json
-{
-  "documentId": "abc123",
-  "status": "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED",
-  "error": "...",
-  "quizzes": [
-    {
-      "id": "quiz1",
-      "title": "Chapter 1 Quiz",
-      "description": "...",
-      "questions": [
-        {
-          "id": "q1",
-          "question": "What is X?",
-          "options": ["A", "B", "C", "D"],
-          "correctIndex": 0,
-          "explanation": "Because...",
-          "tags": ["chapter1"],
-          "imageUrls": ["https://..."]
-        }
-      ]
-    }
-  ]
-}
+{ "id": "abcd1234", "status": "PROCESSING" }
 ```
 
----
+### `DELETE /flashcards/:id`
 
-#### `POST /documents/:id/retry/:stage`
+Deletes the flashcards row. The underlying `storage_files` are **not** cascade-deleted.
 
-Retry a failed processing stage.
-
-**Path params:**
-
-| Param   | Values                                  |
-|---------|-----------------------------------------|
-| `id`    | Document ID                             |
-| `stage` | `notebook` \| `flashcards` \| `quizzes` |
-
-**Request body:** none
-
-**Response `200`**
-```json
-{
-  "documentId": "abc123",
-  "status": "PROCESSING"
-}
-```
-
-**Errors:**
-- `400` — `{ "message": "Invalid stage. Allowed: notebook, flashcards, quizzes" }`
-
----
-
-#### `DELETE /documents/:id/forever`
-
-Permanently delete a specific artifact type from a document.
-
-**Path params:** `id` — document ID
-
-**Query params:**
-
-| Param    | Required | Values                                |
-|----------|----------|---------------------------------------|
-| `target` | Yes      | `notes` \| `flashcards` \| `quizzes` |
-
-**Example:** `DELETE /documents/abc123/forever?target=flashcards`
-
-**Response `200`**
+**Response 200**
 ```json
 { "success": true }
 ```
 
-**Errors:**
-- `400` — `{ "message": "Invalid target. Allowed: notes, flashcards, quizzes" }`
+---
+
+## Quizzes (`/quizzes`)
+
+Mirrors the flashcards surface exactly. Each quiz row is one independent quiz generated from 1–5 source files; questions live inside the row's `content` JSON.
+
+### `GET /quizzes/`
+
+```json
+[
+  {
+    "id": "wxyz9876",
+    "title": "Linear Algebra Midterm Prep",
+    "description": "...",
+    "status": "COMPLETED",
+    "questionCount": 60,
+    "createdAt": "...",
+    "updatedAt": "..."
+  }
+]
+```
+
+### `POST /quizzes/`
+
+Same multipart contract as flashcards (`files` field, 1–5 files, allowed MIMEs). Returns `{ id, status: "PROCESSING" }`.
+
+### `GET /quizzes/:id`
+
+```json
+{
+  "id": "wxyz9876",
+  "title": "Linear Algebra Midterm Prep",
+  "description": "...",
+  "status": "COMPLETED",
+  "questionCount": 60,
+  "createdAt": "...",
+  "updatedAt": "...",
+  "questions": [
+    {
+      "id": "q-eigenvalue-defn",
+      "question": "Which condition characterizes an eigenvalue $\\lambda$ of $A$?",
+      "options": [
+        "$\\det(A - \\lambda I) = 0$",
+        "$\\det(A) = \\lambda$",
+        "$A\\lambda = 0$",
+        "$A^{-1}\\lambda = I$"
+      ],
+      "correctIndex": 0,
+      "explanation": "An eigenvalue makes $A - \\lambda I$ singular, so its determinant is zero...",
+      "tags": ["linear-algebra", "eigenvalue"]
+    }
+  ]
+}
+```
+
+`options` always has at least 4 entries (LLM is constrained to exactly 4 unless the source truly demands more, capped by the schema). `correctIndex` is zero-based. Quiz questions don't currently have images persisted on the row (the LLM emits `imagePrompt`, but no image-gen sub-pipeline runs for quizzes today); when the response includes `imageUrls`, it'll be an array of strings.
+
+### `GET /quizzes/:id/status`, `POST /quizzes/:id/retry`, `DELETE /quizzes/:id`
+
+Identical contracts to the flashcards equivalents.
 
 ---
 
-## Common Error Responses
+## Common error envelope
 
-All endpoints may return:
+All non-2xx responses follow:
 
-| Status | Meaning              | Body                                  |
-|--------|----------------------|---------------------------------------|
-| `401`  | Unauthorized         | `{ "message": "Unauthorized" }`       |
-| `403`  | Forbidden            | `{ "message": "..." }`               |
-| `404`  | Not found            | `{ "message": "..." }`               |
-| `500`  | Internal server error| `{ "message": "..." }`               |
+```json
+{ "message": "..." }
+```
+
+The Elysia error handler also wraps unknown routes and uncaught errors in:
+
+```json
+{
+  "error": {
+    "code": "ROUTE_NOT_FOUND" | "INTERNAL_SERVER_ERROR",
+    "message": "...",
+    "statusCode": 404
+  }
+}
+```
 
 ---
 
-## Typical Frontend Flow
+## Typical client flow
 
-1. **Auth** — register/login via PocketBase SDK, obtain token.
-2. **Upload** — `POST /documents/upload` with the file.
-3. **Poll** — `GET /documents/:id/status` until `status` is `COMPLETED` or `FAILED`.
-4. **Display** — use `/notes`, `/flashcards`, `/quizzes` endpoints to fetch specific artifacts.
-5. **Retry** — if a stage failed, `POST /documents/:id/retry/:stage`.
-6. **Delete** — `DELETE /documents/:id/forever?target=...` to remove an artifact.
+1. Authenticate via PocketBase SDK; obtain a user token.
+2. `POST /flashcards/` **or** `POST /quizzes/` (the user picks one path) with the chosen files.
+3. Poll `GET /:resource/:id/status` until `status` is `COMPLETED` or `FAILED`.
+4. Fetch `GET /:resource/:id` to render. For flashcards, `imageUrls` may keep populating after `COMPLETED` as the image workers finish; re-fetch or poll the detail endpoint to pick up new URLs.
+5. On `FAILED`, optionally `POST /:resource/:id/retry`.
+6. `DELETE /:resource/:id` to remove a row.
