@@ -24,13 +24,13 @@ export const DROPPED_COLLECTIONS = [
 ];
 
 export const pocketBaseSchemaMapping: PocketBaseSchemaMapping = {
-  notes: {
+  meta: {
     purpose:
       "Top-level entities are flashcards and quizzes. Each row owns its full content as JSON, with a multi-file `docs` relation to storage_files.",
     compatibility: [
       "Each upload produces exactly one flashcards or quizzes row.",
       "Children (cards, questions) live inside the row's `content` JSON field.",
-      "Notebook is transient: it is generated in-memory during the pipeline and never persisted.",
+      "Extracted source text is sent directly to the LLM; no intermediate artifacts are persisted.",
     ],
   },
   collections: [

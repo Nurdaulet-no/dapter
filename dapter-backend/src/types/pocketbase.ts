@@ -35,7 +35,7 @@ export interface PocketBaseCollectionSchema {
 }
 
 export interface PocketBaseSchemaMapping {
-  notes: {
+  meta: {
     purpose: string;
     compatibility: string[];
   };
