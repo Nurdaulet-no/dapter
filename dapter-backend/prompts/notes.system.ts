@@ -29,4 +29,9 @@ export const NOTES_SYSTEM_PROMPT = [
   "- Every sentence should add information.",
   "- Write for an attentive learner who already knows the prerequisites; do not over-explain trivia, but do not skip the hard parts either.",
   "- Under-generation is a failure mode. If the source is rich, the guide must be rich.",
+  "",
+  "MARKDOWN ENCODING",
+  "- Use REAL newline characters between paragraphs and sections. Do NOT use HTML `<br>` tags.",
+  "- Do NOT wrap output in `<p>`, `<div>`, `<h1>`, or any other HTML tags. Plain Markdown only.",
+  "- Headings start with `#`/`##`/`###` followed by a space and the heading text on a single line, then a blank line, then content.",
 ].join("\n");

@@ -16,6 +16,19 @@ import {
   runWithStageTimeout,
 } from "./pipeline-helpers";
 
+/**
+ * Some xAI models emit Markdown with `<br>` HTML tags instead of real
+ * newlines, which breaks downstream parsing (the whole document collapses
+ * into a single H1 line). Normalize on save so storage holds clean Markdown.
+ */
+const normalizeMarkdown = (raw: string): string =>
+  raw
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/<br\s*\/?\s*>/gi, "\n\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
 export interface UploadNotesInput {
   ownerId: string;
   files: Array<{ fileName: string; mimeType: string; bytes: Uint8Array }>;
@@ -170,10 +183,12 @@ export class NotesService implements INotesService {
         this.aiService.generateNotes(text),
       );
 
+      const markdown = normalizeMarkdown(payload.markdown);
+
       await this.repository.saveCompletedContent(id, {
         title: payload.title,
         description: payload.description ?? null,
-        markdown: payload.markdown,
+        markdown,
       });
       logger.info("notes.pipeline.completed", {
         id,
