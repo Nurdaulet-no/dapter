@@ -46,7 +46,7 @@ export async function extractCombinedText(input: {
 }
 
 export async function runWithStageTimeout<T>(
-  stage: "notebook" | "flashcards" | "quizzes",
+  stage: "flashcards" | "quizzes",
   rowId: string,
   action: () => Promise<T>,
 ): Promise<T> {

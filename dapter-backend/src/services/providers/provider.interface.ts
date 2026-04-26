@@ -1,6 +1,6 @@
 import type { ZodType } from "zod";
 
-export type LLMStage = "notebook" | "flashcards" | "quizzes";
+export type LLMStage = "flashcards" | "quizzes";
 
 export interface GeneratedImage {
   bytes: Uint8Array;
