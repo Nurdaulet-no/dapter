@@ -43,7 +43,7 @@ export class XaiProvider implements ILLMProvider {
         maxOutputTokens: env.aiMaxOutputTokens,
       });
 
-      const { output } = await this.withTimeout(
+      const result = await this.withTimeout(
         generateText({
           model: this.xai(this.model),
           output: Output.object({ schema: input.schema }),
@@ -59,12 +59,22 @@ export class XaiProvider implements ILLMProvider {
         stage: input.stage,
         provider: this.name,
         model: this.model,
+        finishReason: result.finishReason,
+        usage: result.usage,
       });
 
-      if (output === undefined) {
+      // Fail fast if the response was cut short by the output budget. Saving a
+      // truncated payload as COMPLETED would silently corrupt the artifact.
+      if (result.finishReason === "length") {
+        throw new Error(
+          `xAI response truncated by maxOutputTokens (${env.aiMaxOutputTokens}). Increase AI_MAX_OUTPUT_TOKENS or shorten the source.`,
+        );
+      }
+
+      if (result.output === undefined) {
         throw new Error("xAI returned no structured output");
       }
-      return output as T;
+      return result.output as T;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown xAI error";
       logger.error("ai.provider.attempt.failed", {

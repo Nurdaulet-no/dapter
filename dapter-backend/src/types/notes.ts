@@ -1,16 +1,13 @@
 import type { PocketBaseRowStatus } from "./pocketbase";
 
-export interface NotesContent {
-  markdown: string;
-}
-
 export interface NotesRow {
   id: string;
   ownerId: string;
   docs: string[];
   title: string;
   description: string | null;
-  content: NotesContent;
+  /** Raw Markdown body. Stored as-is in the `content` column. */
+  content: string;
   status: PocketBaseRowStatus;
   error: string | null;
   createdAt: string;

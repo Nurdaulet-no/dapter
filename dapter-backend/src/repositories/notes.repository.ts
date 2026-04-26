@@ -1,7 +1,7 @@
 import { pocketbase } from "../config/pocketbase";
+import { logger } from "../config/logger";
 import type {
   CreateNotesInput,
-  NotesContent,
   NotesDetailView,
   NotesListItemView,
   NotesRow,
@@ -30,38 +30,34 @@ const toStringArray = (value: unknown): string[] => {
 const escapeFilter = (value: string): string =>
   value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 
-const parseContent = (raw: unknown): NotesContent => {
-  if (!raw) return { markdown: "" };
-  let value: unknown = raw;
-  if (typeof value === "string") {
-    try {
-      value = JSON.parse(value);
-    } catch {
-      // Old payloads might have been stored as raw markdown text. Fall back
-      // gracefully by treating the original string as the markdown body.
-      return { markdown: typeof raw === "string" ? raw : "" };
-    }
-  }
-  if (typeof value !== "object" || value === null) return { markdown: "" };
-  const md = (value as { markdown?: unknown }).markdown;
-  return { markdown: typeof md === "string" ? md : "" };
-};
-
 const wordCount = (markdown: string): number =>
   markdown.trim().length === 0 ? 0 : markdown.trim().split(/\s+/).length;
 
-const recordToRow = (record: PBRecord): NotesRow => ({
-  id: record.id,
-  ownerId: toStringOrNull(record.owner) ?? "",
-  docs: toStringArray(record.docs),
-  title: toStringOrNull(record.title) ?? "",
-  description: toStringOrNull(record.description),
-  content: parseContent(record.content),
-  status: toStatus(record.status),
-  error: toStringOrNull(record.error),
-  createdAt: toStringOrNull(record.created) ?? new Date().toISOString(),
-  updatedAt: toStringOrNull(record.updated) ?? new Date().toISOString(),
-});
+const recordToRow = (record: PBRecord): NotesRow => {
+  const status = toStatus(record.status);
+  // PocketBase JSON columns can return any JSON-decoded value. Notes stores a
+  // raw Markdown string, so anything other than `string` is corrupt.
+  const content = typeof record.content === "string" ? record.content : "";
+  if (status === "COMPLETED" && content.length === 0) {
+    logger.error("notes.read.empty_markdown_on_completed", {
+      id: record.id,
+      rawType: typeof record.content,
+    });
+    throw new Error(`Notes row ${record.id} is COMPLETED but has empty markdown`);
+  }
+  return {
+    id: record.id,
+    ownerId: toStringOrNull(record.owner) ?? "",
+    docs: toStringArray(record.docs),
+    title: toStringOrNull(record.title) ?? "",
+    description: toStringOrNull(record.description),
+    content,
+    status,
+    error: toStringOrNull(record.error),
+    createdAt: toStringOrNull(record.created) ?? new Date().toISOString(),
+    updatedAt: toStringOrNull(record.updated) ?? new Date().toISOString(),
+  };
+};
 
 const toListItemView = (row: NotesRow): NotesListItemView => ({
   id: row.id,
@@ -69,14 +65,14 @@ const toListItemView = (row: NotesRow): NotesListItemView => ({
   description: row.description ?? undefined,
   status: row.status,
   error: row.error ?? undefined,
-  wordCount: wordCount(row.content.markdown),
+  wordCount: wordCount(row.content),
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
 });
 
 const toDetailView = (row: NotesRow): NotesDetailView => ({
   ...toListItemView(row),
-  markdown: row.content.markdown,
+  markdown: row.content,
 });
 
 export interface INotesRepository {
@@ -101,7 +97,7 @@ export class PocketBaseNotesRepository implements INotesRepository {
       docs: input.docs,
       title: input.title,
       description: null,
-      content: { markdown: "" } satisfies NotesContent,
+      content: "",
       status: "PROCESSING",
     })) as PBRecord;
     return { id: created.id };
@@ -131,7 +127,13 @@ export class PocketBaseNotesRepository implements INotesRepository {
   public async getDetailView(id: string, ownerId: string): Promise<NotesDetailView | null> {
     const row = await this.getById(id, ownerId);
     if (!row) return null;
-    return toDetailView(row);
+    const view = toDetailView(row);
+    logger.debug("notes.read.detail", {
+      id,
+      status: view.status,
+      markdownChars: view.markdown.length,
+    });
+    return view;
   }
 
   public async getStatusView(id: string, ownerId: string): Promise<NotesStatusView | null> {
@@ -148,13 +150,36 @@ export class PocketBaseNotesRepository implements INotesRepository {
     id: string,
     input: { title: string; description: string | null; markdown: string },
   ): Promise<void> {
+    if (input.markdown.length === 0) {
+      throw new Error(`Refusing to save empty markdown for notes row ${id}`);
+    }
+    logger.info("notes.write.completed", {
+      id,
+      markdownChars: input.markdown.length,
+      titleChars: input.title.length,
+    });
     await pocketbase.collection("notes").update(id, {
       title: input.title,
       description: input.description,
-      content: { markdown: input.markdown } satisfies NotesContent,
+      content: input.markdown,
       status: "COMPLETED",
       error: null,
     });
+    // Read-after-write sanity check: confirm the full markdown round-tripped
+    // through PocketBase. Catches storage-side truncation that we would
+    // otherwise only notice when the user opens the note.
+    const verify = (await pocketbase.collection("notes").getOne(id)) as PBRecord;
+    const persisted = typeof verify.content === "string" ? verify.content : "";
+    if (persisted.length !== input.markdown.length) {
+      logger.error("notes.write.length_mismatch", {
+        id,
+        wroteChars: input.markdown.length,
+        readChars: persisted.length,
+      });
+      throw new Error(
+        `Markdown length mismatch after save (wrote ${input.markdown.length}, read ${persisted.length})`,
+      );
+    }
   }
 
   public async markFailed(id: string, errorMessage: string): Promise<void> {
