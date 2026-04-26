@@ -1,6 +1,6 @@
 # Dapter Backend Documentation
 
-Reference for the backend that turns uploaded study material into flashcard decks and quizzes via xAI Grok.
+Reference for the backend that turns uploaded study material into flashcard decks, quizzes, and Markdown study notes via xAI Grok.
 
 ## Contents
 

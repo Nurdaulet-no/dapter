@@ -7,7 +7,7 @@ Behavior:
 
 1. The backend exposes no auth routes. Login/refresh is handled directly against PocketBase.
 2. Every route except `/health` requires `Authorization: Bearer <pocketbase-user-token>`.
-3. There is **no** `/documents` surface. Flashcards and quizzes are independent, parallel resources. A given upload targets exactly one of them.
+3. There is **no** `/documents` surface. Flashcards, quizzes, and notes are independent, parallel resources. A given upload targets exactly one of them.
 
 ---
 
@@ -53,7 +53,7 @@ Multipart `files` field (single `File` or `Files[]`). 1–5 files per call. Allo
 - `text/plain`
 - `text/markdown`
 
-Per-file size cap is `MAX_UPLOAD_SIZE_BYTES`. Rate limit: 8 uploads/min/user (shared with `POST /quizzes/`).
+Per-file size cap is `MAX_UPLOAD_SIZE_BYTES`. Rate limit: 8 uploads/min/user (single bucket shared with `POST /quizzes/` and `POST /notes/`).
 
 Response (200) — `createFlashcardsResponseSchema`:
 ```json
