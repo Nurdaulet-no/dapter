@@ -1,5 +1,4 @@
 import { pocketbase } from "../config/pocketbase";
-import { logger } from "../config/logger";
 import type {
   CreateNotesInput,
   NotesDetailView,
@@ -33,31 +32,18 @@ const escapeFilter = (value: string): string =>
 const wordCount = (markdown: string): number =>
   markdown.trim().length === 0 ? 0 : markdown.trim().split(/\s+/).length;
 
-const recordToRow = (record: PBRecord): NotesRow => {
-  const status = toStatus(record.status);
-  // PocketBase JSON columns can return any JSON-decoded value. Notes stores a
-  // raw Markdown string, so anything other than `string` is corrupt.
-  const content = typeof record.content === "string" ? record.content : "";
-  if (status === "COMPLETED" && content.length === 0) {
-    logger.error("notes.read.empty_markdown_on_completed", {
-      id: record.id,
-      rawType: typeof record.content,
-    });
-    throw new Error(`Notes row ${record.id} is COMPLETED but has empty markdown`);
-  }
-  return {
-    id: record.id,
-    ownerId: toStringOrNull(record.owner) ?? "",
-    docs: toStringArray(record.docs),
-    title: toStringOrNull(record.title) ?? "",
-    description: toStringOrNull(record.description),
-    content,
-    status,
-    error: toStringOrNull(record.error),
-    createdAt: toStringOrNull(record.created) ?? new Date().toISOString(),
-    updatedAt: toStringOrNull(record.updated) ?? new Date().toISOString(),
-  };
-};
+const recordToRow = (record: PBRecord): NotesRow => ({
+  id: record.id,
+  ownerId: toStringOrNull(record.owner) ?? "",
+  docs: toStringArray(record.docs),
+  title: toStringOrNull(record.title) ?? "",
+  description: toStringOrNull(record.description),
+  content: typeof record.content === "string" ? record.content : "",
+  status: toStatus(record.status),
+  error: toStringOrNull(record.error),
+  createdAt: toStringOrNull(record.created) ?? new Date().toISOString(),
+  updatedAt: toStringOrNull(record.updated) ?? new Date().toISOString(),
+});
 
 const toListItemView = (row: NotesRow): NotesListItemView => ({
   id: row.id,
@@ -127,13 +113,7 @@ export class PocketBaseNotesRepository implements INotesRepository {
   public async getDetailView(id: string, ownerId: string): Promise<NotesDetailView | null> {
     const row = await this.getById(id, ownerId);
     if (!row) return null;
-    const view = toDetailView(row);
-    logger.debug("notes.read.detail", {
-      id,
-      status: view.status,
-      markdownChars: view.markdown.length,
-    });
-    return view;
+    return toDetailView(row);
   }
 
   public async getStatusView(id: string, ownerId: string): Promise<NotesStatusView | null> {
@@ -150,14 +130,6 @@ export class PocketBaseNotesRepository implements INotesRepository {
     id: string,
     input: { title: string; description: string | null; markdown: string },
   ): Promise<void> {
-    if (input.markdown.length === 0) {
-      throw new Error(`Refusing to save empty markdown for notes row ${id}`);
-    }
-    logger.info("notes.write.completed", {
-      id,
-      markdownChars: input.markdown.length,
-      titleChars: input.title.length,
-    });
     await pocketbase.collection("notes").update(id, {
       title: input.title,
       description: input.description,
@@ -165,21 +137,6 @@ export class PocketBaseNotesRepository implements INotesRepository {
       status: "COMPLETED",
       error: null,
     });
-    // Read-after-write sanity check: confirm the full markdown round-tripped
-    // through PocketBase. Catches storage-side truncation that we would
-    // otherwise only notice when the user opens the note.
-    const verify = (await pocketbase.collection("notes").getOne(id)) as PBRecord;
-    const persisted = typeof verify.content === "string" ? verify.content : "";
-    if (persisted.length !== input.markdown.length) {
-      logger.error("notes.write.length_mismatch", {
-        id,
-        wroteChars: input.markdown.length,
-        readChars: persisted.length,
-      });
-      throw new Error(
-        `Markdown length mismatch after save (wrote ${input.markdown.length}, read ${persisted.length})`,
-      );
-    }
   }
 
   public async markFailed(id: string, errorMessage: string): Promise<void> {

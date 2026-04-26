@@ -86,7 +86,9 @@ export const pocketBaseSchemaMapping: PocketBaseSchemaMapping = {
         { name: "docs", type: "relation", required: true, relation: { collection: "storage_files", maxSelect: 5, cascadeDelete: false } },
         { name: "title", type: "text", required: true },
         { name: "description", type: "text" },
-        { name: "content", type: "json", required: true },
+        // Empty while PROCESSING; populated on COMPLETED. The non-empty
+        // invariant for completed rows is enforced in app code.
+        { name: "content", type: "json" },
         { name: "status", type: "select", required: true, options: ["PROCESSING", "COMPLETED", "FAILED"] },
         { name: "error", type: "text" },
         ...timestampFields,

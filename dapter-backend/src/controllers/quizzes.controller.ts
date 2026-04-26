@@ -106,10 +106,14 @@ export const createQuizzesController = (quizzesService: IQuizzesService) =>
           logger.info("quizzes.upload.queued", { id: result.id });
           return result;
         } catch (error) {
+          const message = error instanceof Error ? error.message : "Unexpected upload error";
+          logger.error("quizzes.upload.failed", {
+            message,
+            pbResponse: (error as { response?: unknown })?.response,
+            error,
+          });
           set.status = 500;
-          return {
-            message: error instanceof Error ? error.message : "Unexpected upload error",
-          };
+          return { message };
         }
       },
       {
