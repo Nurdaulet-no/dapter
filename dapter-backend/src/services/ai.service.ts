@@ -7,10 +7,7 @@ import {
   flashcardPayloadSchema,
   type FlashcardPayload,
 } from "../schemas/flashcards.schema";
-import {
-  notesPayloadSchema,
-  type NotesPayload,
-} from "../schemas/notes.schema";
+import { type NotesPayload } from "../schemas/notes.schema";
 import {
   quizPayloadSchema,
   type QuizPayload,
@@ -81,14 +78,16 @@ export class AIService implements IAIService {
     const prompt = [
       NOTES_SYSTEM_PROMPT,
       "",
+      "Begin your response with a single H1 heading (`# Title`) — that is the title of the guide.",
+      "Output ONLY Markdown. Do not wrap in code fences, do not add commentary before or after.",
+      "",
       `SOURCE:\n${text.slice(0, env.maxExtractedChars)}`,
     ].join("\n");
-    const object = await this.provider.generateObject({
+    const markdown = await this.provider.generateText({
       stage: "notes",
-      schema: notesPayloadSchema,
       prompt,
     });
-    return object as NotesPayload;
+    return parseNotesMarkdown(markdown);
   }
 
   private assertSourceLength(text: string): void {
@@ -97,3 +96,25 @@ export class AIService implements IAIService {
     }
   }
 }
+
+const parseNotesMarkdown = (raw: string): NotesPayload => {
+  const stripped = raw
+    .replace(/^\s*```(?:markdown|md)?\s*\n/i, "")
+    .replace(/\n```\s*$/i, "")
+    .trim();
+
+  const h1Match = stripped.match(/^#\s+(.+?)\s*$/m);
+  const title = h1Match?.[1]?.trim() || "Study Guide";
+
+  let description: string | null = null;
+  if (h1Match) {
+    const afterH1 = stripped.slice((h1Match.index ?? 0) + h1Match[0].length);
+    const firstParaMatch = afterH1.match(/\n\s*\n([^\n#>|`].+?)(?:\n\s*\n|$)/s);
+    const candidate = firstParaMatch?.[1]?.trim();
+    if (candidate && candidate.length > 0 && candidate.length <= 400) {
+      description = candidate;
+    }
+  }
+
+  return { title, description, markdown: stripped };
+};

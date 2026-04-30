@@ -15,5 +15,6 @@ export interface ILLMProvider {
     schema: ZodType;
     prompt: string;
   }): Promise<T>;
+  generateText(input: { stage: LLMStage; prompt: string }): Promise<string>;
   generateImage(input: { prompt: string }): Promise<GeneratedImage>;
 }

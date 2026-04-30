@@ -78,6 +78,51 @@ export class XaiProvider implements ILLMProvider {
     }
   }
 
+  public async generateText(input: { stage: LLMStage; prompt: string }): Promise<string> {
+    try {
+      logger.info("ai.provider.text.attempt.started", {
+        stage: input.stage,
+        provider: this.name,
+        model: this.model,
+        attemptTimeoutMs: env.aiProviderAttemptTimeoutMs,
+        maxOutputTokens: env.aiMaxOutputTokens,
+      });
+
+      const { text } = await this.withTimeout(
+        generateText({
+          model: this.xai(this.model),
+          prompt: input.prompt,
+          temperature: 0.3,
+          maxOutputTokens: env.aiMaxOutputTokens,
+        }),
+        env.aiProviderAttemptTimeoutMs,
+        `xAI text attempt timed out after ${env.aiProviderAttemptTimeoutMs}ms`,
+      );
+
+      logger.info("ai.provider.text.attempt.completed", {
+        stage: input.stage,
+        provider: this.name,
+        model: this.model,
+        length: text?.length ?? 0,
+      });
+
+      if (!text || text.trim().length === 0) {
+        throw new Error("xAI returned empty text");
+      }
+      return text;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown xAI error";
+      logger.error("ai.provider.text.attempt.failed", {
+        stage: input.stage,
+        provider: this.name,
+        model: this.model,
+        message,
+        error,
+      });
+      throw new Error(`xAI text failed for ${input.stage}: ${message}`);
+    }
+  }
+
   public async generateImage(input: { prompt: string }): Promise<GeneratedImage> {
     const startedAt = Date.now();
     try {
