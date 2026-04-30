@@ -16,9 +16,12 @@ const frontendBaseUrls = parseOrigins(
   Bun.env.FRONTEND_BASE_URLS ?? "http://localhost:3001,http://localhost:5173",
 );
 
+const pocketbaseUrl = requireEnv("POCKETBASE_URL");
+
 export const env = {
   port: Number(Bun.env.PORT ?? 3000),
-  pocketbaseUrl: requireEnv("POCKETBASE_URL"),
+  pocketbaseUrl,
+  pocketbasePublicUrl: Bun.env.POCKETBASE_PUBLIC_URL ?? pocketbaseUrl,
   pocketbaseSuperuserEmail: requireEnv("POCKETBASE_SUPERUSER_EMAIL"),
   pocketbaseSuperuserPassword: requireEnv("POCKETBASE_SUPERUSER_PASSWORD"),
   aiProvider: Bun.env.AI_PROVIDER ?? "xai",
