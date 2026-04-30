@@ -47,7 +47,12 @@ const notesService = new NotesService(
 const app = new Elysia()
   .use(
     cors({
-      origin: env.frontendBaseUrls,
+      origin: [
+        ...env.frontendBaseUrls,
+        /^capacitor:\/\//,
+        /^ionic:\/\//,
+        "https://localhost",
+      ],
       methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
       credentials: true,
     }),
