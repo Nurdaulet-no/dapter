@@ -9,6 +9,7 @@ import type {
   QuizStatusView,
 } from "../types/quizzes";
 import type { PocketBaseRowStatus } from "../types/pocketbase";
+import { toPublicFileUrl } from "../utils/public-url";
 
 interface PBRecord {
   id: string;
@@ -100,7 +101,10 @@ const toDetailView = (row: QuizRow): QuizDetailView => ({
     correctIndex: question.correctIndex,
     explanation: question.explanation ?? undefined,
     tags: question.tags && question.tags.length > 0 ? question.tags : undefined,
-    imageUrls: question.imageUrls && question.imageUrls.length > 0 ? question.imageUrls : undefined,
+    imageUrls:
+      question.imageUrls && question.imageUrls.length > 0
+        ? question.imageUrls.map(toPublicFileUrl)
+        : undefined,
   })),
 });
 

@@ -1,15 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { env } from "../config/env";
 import { pocketbase } from "../config/pocketbase";
 import { logger } from "../config/logger";
-
-const toPublicFileUrl = (internalUrl: string): string => {
-  const url = new URL(internalUrl);
-  const publicBase = new URL(env.pocketbasePublicUrl);
-  url.protocol = publicBase.protocol;
-  url.host = publicBase.host;
-  return url.toString();
-};
 
 export interface IStorageService {
   upload(input: {
@@ -48,7 +39,7 @@ export class StorageService implements IStorageService {
     if (!created.file) {
       throw new Error("PocketBase storage record missing file field");
     }
-    const fileUrl = toPublicFileUrl(pocketbase.files.getURL(created, created.file));
+    const fileUrl = pocketbase.files.getURL(created, created.file);
     logger.info("storage.upload.completed", {
       fileKey: created.id,
       fileUrl,

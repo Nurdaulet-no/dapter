@@ -9,6 +9,7 @@ import type {
   FlashcardsStatusView,
 } from "../types/flashcards";
 import type { PocketBaseRowStatus } from "../types/pocketbase";
+import { toPublicFileUrl } from "../utils/public-url";
 
 interface PBRecord {
   id: string;
@@ -93,7 +94,10 @@ const toDetailView = (row: FlashcardsRow): FlashcardsDetailView => ({
     id: card.id,
     front: card.front,
     back: card.back,
-    imageUrls: card.imageUrls && card.imageUrls.length > 0 ? card.imageUrls : undefined,
+    imageUrls:
+      card.imageUrls && card.imageUrls.length > 0
+        ? card.imageUrls.map(toPublicFileUrl)
+        : undefined,
     tags: card.tags && card.tags.length > 0 ? card.tags : undefined,
   })),
 });
